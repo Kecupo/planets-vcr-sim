@@ -1,0 +1,340 @@
+[gd_scene load_steps=6 format=3 uid="uid://c17omo313i7o1"]
+
+[ext_resource type="Script" uid="uid://d1nmiewbmiak" path="res://Scripts/Combat/combat_screen.gd" id="1_bs3l0"]
+[ext_resource type="PackedScene" uid="uid://dkywy881bl5yv" path="res://Scenes/Combat/ship_sprite_2d.tscn" id="1_wpgo6"]
+[ext_resource type="Script" uid="uid://d3r4lmn7xrvle" path="res://Scripts/Combat/weapon_bank_view.gd" id="2_rt64k"]
+[ext_resource type="Script" uid="uid://clacm23mkx7cx" path="res://Scripts/Combat/ship_view.gd" id="3_rt64k"]
+[ext_resource type="Script" uid="uid://bkkab574ot56c" path="res://Scripts/Combat/combat_hud_frame.gd" id="4_nwv4o"]
+
+[node name="CombatScreen" type="Node2D"]
+script = ExtResource("1_bs3l0")
+
+[node name="BattleArea" type="Node2D" parent="."]
+
+[node name="Background" type="Sprite2D" parent="BattleArea"]
+
+[node name="Ships" type="Node2D" parent="BattleArea"]
+
+[node name="LeftShip" parent="BattleArea/Ships" instance=ExtResource("1_wpgo6")]
+script = ExtResource("3_rt64k")
+
+[node name="RightShip" parent="BattleArea/Ships" instance=ExtResource("1_wpgo6")]
+script = ExtResource("3_rt64k")
+
+[node name="Fighters" type="Node2D" parent="BattleArea"]
+
+[node name="Torpedoes" type="Node2D" parent="BattleArea"]
+
+[node name="Effects" type="Node2D" parent="BattleArea"]
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="TopHudFrame" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("4_nwv4o")
+
+[node name="BottomHudFrame" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("4_nwv4o")
+
+[node name="TopBar" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="LeftName" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 404.0
+offset_top = 773.0
+offset_right = 405.0
+offset_bottom = 796.0
+
+[node name="RightName" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 404.0
+offset_top = 773.0
+offset_right = 405.0
+offset_bottom = 796.0
+
+[node name="TimeLabel" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 404.0
+offset_top = 773.0
+offset_right = 405.0
+offset_bottom = 796.0
+
+[node name="DistanceLabel" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 404.0
+offset_top = 773.0
+offset_right = 405.0
+offset_bottom = 796.0
+
+[node name="VcrIndexLabel" type="Label" parent="UI/TopBar"]
+layout_mode = 0
+offset_left = 404.0
+offset_top = 773.0
+offset_right = 405.0
+offset_bottom = 796.0
+
+[node name="LeftInfoPanel" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="LeftFightersLabel" type="Label" parent="UI/LeftInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="LeftCrewLabel" type="Label" parent="UI/LeftInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="LeftDamageLabel" type="Label" parent="UI/LeftInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="LeftShieldLabel" type="Label" parent="UI/LeftInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="LeftTorpsLabel" type="Label" parent="UI/LeftInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="RightInfoPanel" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="RightFightersLabel" type="Label" parent="UI/RightInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="RightCrewLabel" type="Label" parent="UI/RightInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="RightDamageLabel" type="Label" parent="UI/RightInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="RightShieldLabel" type="Label" parent="UI/RightInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="RightTorpsLabel" type="Label" parent="UI/RightInfoPanel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="WeaponPanel" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="LeftBeamBank" type="Control" parent="UI/WeaponPanel"]
+custom_minimum_size = Vector2(240, 120)
+anchors_preset = 0
+offset_left = 40.0
+offset_top = 520.0
+offset_right = 280.0
+offset_bottom = 640.0
+script = ExtResource("2_rt64k")
+
+[node name="LeftTorpBank" type="Control" parent="UI/WeaponPanel"]
+anchors_preset = 0
+offset_left = 120.0
+offset_top = 520.0
+offset_right = 160.0
+offset_bottom = 560.0
+script = ExtResource("2_rt64k")
+
+[node name="LeftBayBank" type="Control" parent="UI/WeaponPanel"]
+anchors_preset = 0
+offset_left = 120.0
+offset_top = 520.0
+offset_right = 160.0
+offset_bottom = 560.0
+script = ExtResource("2_rt64k")
+
+[node name="LeftBeamTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 40.0
+offset_top = 695.0
+offset_right = 80.0
+offset_bottom = 718.0
+rotation = 4.712389
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LeftTorpTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 695.0
+offset_right = 160.0
+offset_bottom = 718.0
+rotation = 4.694936
+horizontal_alignment = 1
+
+[node name="LeftBayTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 120.0
+offset_top = 695.0
+offset_right = 160.0
+offset_bottom = 718.0
+rotation = 4.712389
+horizontal_alignment = 1
+
+[node name="RightBeamBank" type="Control" parent="UI/WeaponPanel"]
+anchors_preset = 0
+offset_left = 1040.0
+offset_top = 520.0
+offset_right = 1080.0
+offset_bottom = 560.0
+script = ExtResource("2_rt64k")
+
+[node name="RightTorpBank" type="Control" parent="UI/WeaponPanel"]
+anchors_preset = 0
+offset_left = 940.0
+offset_top = 520.0
+offset_right = 980.0
+offset_bottom = 560.0
+script = ExtResource("2_rt64k")
+
+[node name="RightBayBank" type="Control" parent="UI/WeaponPanel"]
+anchors_preset = 0
+offset_left = 940.0
+offset_top = 520.0
+offset_right = 980.0
+offset_bottom = 560.0
+script = ExtResource("2_rt64k")
+
+[node name="RightBeamTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 1040.0
+offset_top = 695.0
+offset_right = 1080.0
+offset_bottom = 718.0
+rotation = 4.712389
+horizontal_alignment = 1
+
+[node name="RightTorpTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 940.0
+offset_top = 695.0
+offset_right = 980.0
+offset_bottom = 718.0
+rotation = 4.712389
+horizontal_alignment = 1
+
+[node name="RightBayTitle" type="Label" parent="UI/WeaponPanel"]
+layout_mode = 0
+offset_left = 940.0
+offset_top = 695.0
+offset_right = 980.0
+offset_bottom = 718.0
+rotation = 4.712389
+horizontal_alignment = 1
+
+[node name="SimulationOverlay" type="Control" parent="UI"]
+layout_mode = 3
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="Panel" type="Panel" parent="UI/SimulationOverlay"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="TitleLabel" type="Label" parent="UI/SimulationOverlay/Panel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="SimulationResultLabel" type="Label" parent="UI/SimulationOverlay/Panel"]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 23.0
+
+[node name="CloseButton" type="Button" parent="UI/SimulationOverlay/Panel"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+
+[node name="Buttons" type="MenuBar" parent="UI"]
+anchors_preset = 10
+anchor_right = 1.0
+grow_horizontal = 2
+
+[node name="NextButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Next"
+
+[node name="StartButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Start battle"
+
+[node name="StepButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Step"
+
+[node name="FastButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Fast"
+
+[node name="SimulateButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_left = 156.0
+offset_top = 67.0
+offset_right = 312.0
+offset_bottom = 181.0
+text = "Simulate this battle"
+
+[node name="PrevButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Previous"
+
+[node name="ResetButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_left = 461.0
+offset_top = 209.0
+offset_right = 521.0
+offset_bottom = 246.0
+text = "Reset"
+
+[node name="CloseAppButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Close"

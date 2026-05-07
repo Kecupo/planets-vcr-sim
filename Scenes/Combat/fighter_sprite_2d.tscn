@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3 uid="uid://2xw4qb3mgrub"]
+
+[ext_resource type="Script" uid="uid://b8lpcwmmnesfe" path="res://Scripts/Combat/fighter_view.gd" id="1_shldq"]
+
+[node name="FighterSprite2d" type="Sprite2D"]
+script = ExtResource("1_shldq")
