@@ -16,3 +16,6 @@ data_*/
 mono_crash.*.json
 *.json
 *.js
+project.godot
+Planets VCR Sim.sln
+Planets VCR Sim.csproj
