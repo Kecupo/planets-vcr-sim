@@ -281,6 +281,7 @@ func _clone_combat_object(src: CombatObject) -> CombatObject:
 	obj.component_hull_ids = src.component_hull_ids.duplicate()
 	obj.is_squadron = src.is_squadron
 	obj.is_elusive = src.is_elusive
+	obj.has_gravitonic_accelerator = src.has_gravitonic_accelerator
 	obj.is_planet = src.is_planet
 
 	obj.beam_type = src.beam_type

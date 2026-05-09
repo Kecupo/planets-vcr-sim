@@ -162,6 +162,7 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 static func _apply_hull_abilities(obj: CombatObject) -> void:
 	obj.is_squadron = ShipData.is_squadron_hull(obj.hull_id)
 	obj.is_elusive = ShipData.is_elusive_hull(obj.hull_id)
+	obj.has_gravitonic_accelerator = ShipData.has_gravitonic_accelerator(obj.hull_id)
 	
 static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()

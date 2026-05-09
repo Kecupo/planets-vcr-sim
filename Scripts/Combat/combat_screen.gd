@@ -2296,6 +2296,7 @@ func _apply_builder_hull_abilities(obj: CombatObject) -> void:
 	obj.component_hull_ids = ShipData.get_stacked_component_ids(obj.hull_id)
 	obj.is_squadron = ShipData.is_squadron_hull(obj.hull_id)
 	obj.is_elusive = ShipData.is_elusive_hull(obj.hull_id)
+	obj.has_gravitonic_accelerator = ShipData.has_gravitonic_accelerator(obj.hull_id)
 
 
 func _horwasp_fighter_count(hull_id: int, clans: int, cargo_capacity: int) -> int:

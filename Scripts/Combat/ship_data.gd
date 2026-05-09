@@ -6,6 +6,13 @@ var beams: Dictionary = {}
 var torps: Dictionary = {}
 var engines: Dictionary = {}
 var hulls: Dictionary = {}
+var quantum_torpedos_enabled: bool = false
+var quantum_torpedo_miss_rate_for_gravitonics: int = 0
+var gravitonic_quantum_elusive_enabled: bool = false
+const QUANTUM_TORP_ID: int = 11
+const GRAVITONIC_QUANTUM_ELUSIVE_START_YEAR: int = 2023
+const GRAVITONIC_QUANTUM_ELUSIVE_START_MONTH: int = 1
+const GRAVITONIC_QUANTUM_ELUSIVE_START_DAY: int = 1
 const STACKED_HULL_COMPONENTS: Dictionary = {
 	150: [98, 103],
 	151: [95, 98],
@@ -59,6 +66,7 @@ func load_from_turn_file(path: String) -> bool:
 	_load_torps_from_rst(rst)
 	_load_engines_from_rst(rst)
 	_load_hulls_from_rst(rst)
+	_load_combat_settings(rst)
 
 	print("ShipData loaded: beams=", beams.size(), " torps=", torps.size(), " engines=", engines.size(), " hulls=", hulls.size())
 	return true
@@ -228,6 +236,52 @@ func get_torp_kill(torp_id: int) -> int:
 func get_torp_range(torp_id: int) -> int:
 	return int(get_torp(torp_id).get("range", 300))
 
+
+func is_quantum_torp(torp_id: int) -> bool:
+	return torp_id == QUANTUM_TORP_ID
+
+
+func _load_combat_settings(rst: Dictionary) -> void:
+	quantum_torpedos_enabled = false
+	quantum_torpedo_miss_rate_for_gravitonics = 0
+	gravitonic_quantum_elusive_enabled = false
+
+	var settings: Dictionary = rst.get("settings", {})
+	var game: Dictionary = rst.get("game", {})
+	quantum_torpedos_enabled = bool(settings.get("quantumtorpedos", false))
+	quantum_torpedo_miss_rate_for_gravitonics = int(settings.get("quantumtorpedomissrateforgravitonics", 0))
+	gravitonic_quantum_elusive_enabled = quantum_torpedos_enabled \
+		and quantum_torpedo_miss_rate_for_gravitonics > 0 \
+		and _game_started_on_or_after(game, GRAVITONIC_QUANTUM_ELUSIVE_START_YEAR, GRAVITONIC_QUANTUM_ELUSIVE_START_MONTH, GRAVITONIC_QUANTUM_ELUSIVE_START_DAY)
+
+
+func _game_started_on_or_after(game: Dictionary, year: int, month: int, day: int) -> bool:
+	var date_text: String = String(game.get("datecreated", ""))
+	var parsed: Dictionary = _parse_us_date(date_text)
+	if parsed.is_empty():
+		return true
+
+	var parsed_year: int = int(parsed.get("year", 0))
+	var parsed_month: int = int(parsed.get("month", 0))
+	var parsed_day: int = int(parsed.get("day", 0))
+	if parsed_year != year:
+		return parsed_year > year
+	if parsed_month != month:
+		return parsed_month > month
+	return parsed_day >= day
+
+
+func _parse_us_date(date_text: String) -> Dictionary:
+	var date_part: String = date_text.strip_edges().split(" ")[0]
+	var parts: PackedStringArray = date_part.split("/")
+	if parts.size() < 3:
+		return {}
+	return {
+		"month": int(parts[0]),
+		"day": int(parts[1]),
+		"year": int(parts[2])
+	}
+
 func get_hull_image_id(hull_id: int) -> int:
 	var candidates: Array[int] = get_hull_image_ids(hull_id)
 	if not candidates.is_empty():
@@ -268,6 +322,11 @@ func is_squadron_hull(hull_id: int) -> bool:
 func is_elusive_hull(hull_id: int) -> bool:
 	var special: String = String(get_hull(hull_id).get("special", "")).to_lower()
 	return special.find("elusive") >= 0
+
+
+func has_gravitonic_accelerator(hull_id: int) -> bool:
+	var special: String = String(get_hull(hull_id).get("special", "")).to_lower()
+	return special.find("gravitonic") >= 0
 
 
 func is_stacked_hull(hull_id: int) -> bool:

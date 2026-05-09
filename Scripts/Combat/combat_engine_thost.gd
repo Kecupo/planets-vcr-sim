@@ -289,7 +289,7 @@ func _fire_torpedoes(side: CombatState.SideState, opp: CombatState.SideState) ->
 
 func _fire_torp(side: CombatState.SideState, opp: CombatState.SideState, _launcher: int) -> void:
 	var n: int = rng.random_1_100()
-	var hit: bool = n <= 10 if opp.obj.is_elusive else n >= side.obj.torp_miss_rate
+	var hit: bool = n >= _torpedo_miss_rate_against_target(side, opp)
 
 	emit_signal("torpedo_fired", side.side, side.cur_x, opp.cur_x, hit)
 
@@ -297,6 +297,16 @@ func _fire_torp(side: CombatState.SideState, opp: CombatState.SideState, _launch
 		var torp_damage: int = _get_torp_damage(side.obj.torp_type)
 		var torp_kill: int = _get_torp_kill(side.obj.torp_type)
 		_hit_torp(opp, torp_damage, torp_kill)
+
+
+func _torpedo_miss_rate_against_target(side: CombatState.SideState, opp: CombatState.SideState) -> int:
+	if opp.obj.is_elusive:
+		return 91
+	if ShipData.gravitonic_quantum_elusive_enabled \
+	and opp.obj.has_gravitonic_accelerator \
+	and ShipData.is_quantum_torp(side.obj.torp_type):
+		return ShipData.quantum_torpedo_miss_rate_for_gravitonics + 1
+	return side.obj.torp_miss_rate
 
 func _launch_fighters(side: CombatState.SideState) -> void:
 	if side.obj.bay_count > 0:
