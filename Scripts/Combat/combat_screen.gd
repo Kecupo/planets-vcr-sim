@@ -537,8 +537,13 @@ func _apply_side_visual(view: ShipView, obj: CombatObject) -> void:
 		else:
 			view.clear_starbase_overlay()
 	else:
-		view.set_ship_texture(obj.hull_id)
+		view.set_ship_texture(obj.hull_id, _squadron_visual_count(obj))
 		view.clear_starbase_overlay()
+
+func _squadron_visual_count(obj: CombatObject) -> int:
+	if not ShipData.is_squadron_hull(obj.hull_id):
+		return 1
+	return clamp(obj.beam_count, 1, 4)
 		
 func _rebuild_fighters() -> void:
 	for child: Node in fighters_layer.get_children():

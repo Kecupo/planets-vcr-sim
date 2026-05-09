@@ -7,6 +7,8 @@ extends Node2D
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var base_sprite: Sprite2D = $BaseSprite2d
 @onready var name_label: Label = $NameLabel
+var _squadron_sprites: Array[Sprite2D] = []
+var _visual_size_override: Vector2 = Vector2.ZERO
 	
 func set_ship_name(value: String) -> void:
 	name_label.text = value
@@ -26,29 +28,81 @@ func set_facing(is_left_side: bool) -> void:
 		name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 		sprite.flip_h = false
 
+	for squadron_sprite: Sprite2D in _squadron_sprites:
+		squadron_sprite.flip_h = facing_left
+
 	queue_redraw()
 
-func set_ship_texture(hull_id: int) -> void:
+func set_ship_texture(hull_id: int, squadron_count: int = 1) -> void:
 	base_sprite.visible = false
-	var image_id: int = ShipData.get_hull_image_id(hull_id)
-	var path := "res://Assets/Ships/%d.png" % image_id
+	_clear_squadron_sprites()
+	_visual_size_override = Vector2.ZERO
+	var path: String = _find_ship_texture_path(hull_id)
 
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
-		#_apply_texture_scale(sprite, 120.0, 70.0)
-		var tex_size: Vector2 = sprite.texture.get_size()
-		if tex_size.x > 0.0 and tex_size.y > 0.0:
-			var target_width: float = 300.0
-			var target_height: float = 200.0
+		sprite.visible = true
 
-			var scale_x: float = target_width / tex_size.x
-			var scale_y: float = target_height / tex_size.y
-			var scale_factor: float = min(scale_x, scale_y)
+		if squadron_count > 1:
+			_setup_squadron_sprites(sprite.texture, squadron_count)
+		else:
+			_apply_texture_scale(sprite, 300.0, 200.0)
+	else:
+		sprite.texture = null
+		sprite.visible = false
 
-			sprite.scale = Vector2(scale_factor, scale_factor)
+func _find_ship_texture_path(hull_id: int) -> String:
+	for image_id: int in ShipData.get_hull_image_ids(hull_id):
+		var path := "res://Assets/Ships/%d.png" % image_id
+		if ResourceLoader.exists(path):
+			return path
+
+	return "res://Assets/Ships/%d.png" % ShipData.get_hull_image_id(hull_id)
+
+
+func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:
+	sprite.visible = false
+	sprite.texture = texture
+	var count: int = clamp(squadron_count, 1, 4)
+	var target_width: float = 150.0 if count >= 3 else 175.0
+	var target_height: float = 95.0 if count >= 3 else 115.0
+	var positions: Array[Vector2] = _squadron_positions(count)
+
+	for offset: Vector2 in positions:
+		var squadron_sprite: Sprite2D = Sprite2D.new()
+		squadron_sprite.texture = texture
+		squadron_sprite.centered = true
+		squadron_sprite.position = offset
+		squadron_sprite.flip_h = facing_left
+		add_child(squadron_sprite)
+		_apply_texture_scale(squadron_sprite, target_width, target_height)
+		_squadron_sprites.append(squadron_sprite)
+
+	_visual_size_override = Vector2(300.0, 190.0)
+
+
+func _squadron_positions(count: int) -> Array[Vector2]:
+	match count:
+		2:
+			return [Vector2(-58.0, 0.0), Vector2(58.0, 0.0)]
+		3:
+			return [Vector2(0.0, -42.0), Vector2(-62.0, 42.0), Vector2(62.0, 42.0)]
+		4:
+			return [Vector2(-62.0, -42.0), Vector2(62.0, -42.0), Vector2(-62.0, 42.0), Vector2(62.0, 42.0)]
+	return [Vector2.ZERO]
+
+
+func _clear_squadron_sprites() -> void:
+	for squadron_sprite: Sprite2D in _squadron_sprites:
+		if is_instance_valid(squadron_sprite):
+			squadron_sprite.queue_free()
+	_squadron_sprites.clear()
 			
 func set_planet_texture(filename: String) -> void:
 	base_sprite.visible = false
+	_clear_squadron_sprites()
+	_visual_size_override = Vector2.ZERO
+	sprite.visible = true
 
 	var path := "res://Assets/Planets/%s" % filename
 	if ResourceLoader.exists(path):
@@ -91,12 +145,16 @@ func _apply_texture_scale(target: Sprite2D, target_width: float, target_height: 
 	target.centered = true
 
 func get_visual_height() -> float:
+	if _visual_size_override != Vector2.ZERO:
+		return _visual_size_override.y
 	if sprite == null or sprite.texture == null:
 		return 60.0
 
 	return sprite.texture.get_size().y * sprite.scale.y
 
 func get_visual_width() -> float:
+	if _visual_size_override != Vector2.ZERO:
+		return _visual_size_override.x
 	if sprite == null or sprite.texture == null:
 		return 100.0
 

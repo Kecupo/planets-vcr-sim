@@ -145,6 +145,7 @@ func _load_hulls_from_rst(rst: Dictionary) -> void:
 
 		hulls[id] = {
 			"name": String(entry.get("name", "Unknown Hull")),
+			"imageid": int(entry.get("imageid", entry.get("image", 0))),
 			"mass": int(entry.get("mass", 0)),
 			"cargo": int(entry.get("cargo", 0)),
 			"crew": int(entry.get("crew", 0)),
@@ -204,12 +205,48 @@ func get_torp_range(torp_id: int) -> int:
 	return int(get_torp(torp_id).get("range", 300))
 
 func get_hull_image_id(hull_id: int) -> int:
+	var candidates: Array[int] = get_hull_image_ids(hull_id)
+	if not candidates.is_empty():
+		return candidates[0]
+	return hull_id
+
+
+func get_hull_image_ids(hull_id: int) -> Array[int]:
+	var candidates: Array[int] = []
 	var hull: Dictionary = get_hull(hull_id)
 	if hull.is_empty():
-		return hull_id
+		_append_image_candidate(candidates, hull_id)
+		_append_image_candidate(candidates, _campaign_base_hull_id(hull_id))
+		return candidates
 
+	_append_image_candidate(candidates, hull_id)
+	_append_image_candidate(candidates, int(hull.get("imageid", 0)))
 	var parent_id: int = int(hull.get("parentid", 0))
-	if parent_id > 0:
-		return parent_id
+	_append_image_candidate(candidates, parent_id)
+	_append_image_candidate(candidates, _campaign_base_hull_id(hull_id))
+	_append_image_candidate(candidates, _campaign_base_hull_id(parent_id))
 
-	return hull_id
+	return candidates
+
+
+func is_squadron_hull(hull_id: int) -> bool:
+	if hull_id in [1065, 2065, 1071, 2071]:
+		return true
+
+	var hull_name: String = String(get_hull(hull_id).get("name", "")).to_lower()
+	return hull_name.find("gunboats") >= 0
+
+
+func _append_image_candidate(candidates: Array[int], image_id: int) -> void:
+	if image_id <= 0:
+		return
+	if image_id in candidates:
+		return
+	candidates.append(image_id)
+
+
+func _campaign_base_hull_id(hull_id: int) -> int:
+	if hull_id < 1000:
+		return 0
+	var base_id: int = hull_id % 1000
+	return base_id if base_id > 0 else 0
