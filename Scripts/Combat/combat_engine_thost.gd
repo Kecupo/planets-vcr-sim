@@ -59,13 +59,21 @@ func play_cycle() -> bool:
 		return false
 
 	if state.left.obj.damage >= state.left.obj.damage_limit:
+		if _restart_squadron_if_possible(state.left):
+			return true
 		return false
 	if state.right.obj.damage >= state.right.obj.damage_limit:
+		if _restart_squadron_if_possible(state.right):
+			return true
 		return false
 
 	if state.left.obj.crew <= 0:
+		if _restart_squadron_if_possible(state.left):
+			return true
 		return false
 	if state.right.obj.crew <= 0 and not state.right.obj.is_planet:
+		if _restart_squadron_if_possible(state.right):
+			return true
 		return false
 
 	if state.time >= 2000:
@@ -136,6 +144,8 @@ func _compute_result_status() -> int:
 	else:
 		if state.left.obj.damage >= state.left.obj.damage_limit:
 			result |= CombatConstants.VCRS_LEFT_DESTROYED
+		elif state.left.obj.is_squadron and state.left.obj.crew <= 0:
+			result |= CombatConstants.VCRS_LEFT_DESTROYED
 		elif state.left.obj.crew <= 0:
 			if state.left.obj.damage < state.left.obj.damage_limit:
 				result |= CombatConstants.VCRS_LEFT_CAPTURED
@@ -143,6 +153,8 @@ func _compute_result_status() -> int:
 				result |= CombatConstants.VCRS_LEFT_DESTROYED
 
 		if state.right.obj.damage >= state.right.obj.damage_limit:
+			result |= CombatConstants.VCRS_RIGHT_DESTROYED
+		elif state.right.obj.is_squadron and state.right.obj.crew <= 0:
 			result |= CombatConstants.VCRS_RIGHT_DESTROYED
 		elif state.right.obj.crew <= 0:
 			if state.right.obj.damage < state.right.obj.damage_limit:
@@ -154,6 +166,47 @@ func _compute_result_status() -> int:
 		result = CombatConstants.VCRS_TIMEOUT
 
 	return result
+
+
+func _restart_squadron_if_possible(side: CombatState.SideState) -> bool:
+	if not side.obj.is_squadron:
+		return false
+	if side.obj.beam_count <= 1:
+		return false
+
+	_recover_active_fighters(state.left)
+	_recover_active_fighters(state.right)
+
+	side.obj.beam_count -= 1
+	side.obj.damage = 0
+	side.obj.shield = side.initial_shield
+	side.obj.crew = side.initial_crew
+	side.num_fighters_out = 0
+	side.cur_x = 30 if side.side == CombatTypes.Side.LEFT else (610 if state.battle_type == CombatConstants.SHIP_TO_SHIP else 570)
+
+	for i: int in range(CombatConstants.MAX_BEAMS):
+		side.beam_status[i] = 100 if i < side.obj.beam_count else 0
+		side.torp_status[i] = 30 if i < side.obj.torp_launcher_count else 0
+	for i: int in range(CombatConstants.MAX_FIGHTERS):
+		side.fighter_active[i] = CombatConstants.FIGHTER_IDLE
+		side.fighter_x[i] = 0
+
+	if side.side == CombatTypes.Side.LEFT:
+		state.right.cur_x = 610 if state.battle_type == CombatConstants.SHIP_TO_SHIP else 570
+	else:
+		state.left.cur_x = 30
+
+	emit_signal("hit_resolved", side.side, side.obj.shield, side.obj.damage, side.obj.crew)
+	return true
+
+
+func _recover_active_fighters(side: CombatState.SideState) -> void:
+	for i: int in range(CombatConstants.MAX_FIGHTERS):
+		if side.fighter_active[i] != CombatConstants.FIGHTER_IDLE:
+			side.obj.fighter_count += 1
+			side.fighter_active[i] = CombatConstants.FIGHTER_IDLE
+			side.fighter_x[i] = 0
+	side.num_fighters_out = 0
 
 
 func _preload_weapons(side: CombatState.SideState) -> void:
@@ -236,7 +289,7 @@ func _fire_torpedoes(side: CombatState.SideState, opp: CombatState.SideState) ->
 
 func _fire_torp(side: CombatState.SideState, opp: CombatState.SideState, _launcher: int) -> void:
 	var n: int = rng.random_1_100()
-	var hit: bool = n >= side.obj.torp_miss_rate
+	var hit: bool = n <= 10 if opp.obj.is_elusive else n >= side.obj.torp_miss_rate
 
 	emit_signal("torpedo_fired", side.side, side.cur_x, opp.cur_x, hit)
 
@@ -309,7 +362,7 @@ func _hit(target: CombatState.SideState, damage: int, kill: int) -> void:
 		target.obj.damage = min(9999, hull_damage)
 		shld = 0
 
-	if target.obj.shield == 0 and not target.obj.is_planet:
+	if target.obj.shield == 0 and not target.obj.is_planet and not target.obj.is_squadron:
 		var effective_kill: int = kill
 		if target.obj.crew_defense_rate > 0:
 			effective_kill = radiv((100 - target.obj.crew_defense_rate) * kill, 100)
@@ -437,7 +490,7 @@ func _hit_torp(target: CombatState.SideState, damage: int, kill: int) -> void:
 		target.obj.damage = min(9999, hull_damage)
 		shld = 0
 
-	if target.obj.shield == 0 and not target.obj.is_planet:
+	if target.obj.shield == 0 and not target.obj.is_planet and not target.obj.is_squadron:
 		var defense: int = clamp(target.obj.crew_defense_rate, 0, 100)
 		var effective_kill: int = int(round(2*kill * (1.0 - float(defense) / 100.0)))
 

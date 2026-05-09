@@ -10,6 +10,8 @@ var hull_id: int = 0
 var object_id: int = 0
 var is_planet: bool = false
 var component_hull_ids: Array[int] = []
+var is_squadron: bool = false
+var is_elusive: bool = false
 
 var beam_type: int = 0
 var beam_count: int = 0
@@ -47,6 +49,8 @@ func duplicate_object() -> CombatObject:
 	c.object_id = object_id
 	c.is_planet = is_planet
 	c.component_hull_ids = component_hull_ids.duplicate()
+	c.is_squadron = is_squadron
+	c.is_elusive = is_elusive
 	c.beam_type = beam_type
 	c.beam_count = beam_count
 	c.torp_type = torp_type

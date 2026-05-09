@@ -68,6 +68,8 @@ var TORP_RIGHT_BASE_OFFSET: float = 22.0
 var _fighter_views_left: Array[FighterView] = []
 var _fighter_views_right: Array[FighterView] = []
 var _pending_torp_hit_projectiles: Dictionary = {}
+var _left_visual_key: String = ""
+var _right_visual_key: String = ""
 
 var _running: bool = false
 var _run_speed: int = 1
@@ -556,6 +558,8 @@ func _setup_ship_views() -> void:
 	right_ship.set_facing(false)
 	_apply_side_visual(left_ship, engine.state.left.obj)
 	_apply_side_visual(right_ship, engine.state.right.obj)
+	_left_visual_key = _side_visual_key(engine.state.left.obj)
+	_right_visual_key = _side_visual_key(engine.state.right.obj)
 
 func _apply_side_visual(view: ShipView, obj: CombatObject) -> void:
 	if obj.is_planet:
@@ -567,6 +571,11 @@ func _apply_side_visual(view: ShipView, obj: CombatObject) -> void:
 	else:
 		view.set_ship_texture(obj.hull_id, _squadron_visual_count(obj))
 		view.clear_starbase_overlay()
+
+func _side_visual_key(obj: CombatObject) -> String:
+	if obj.is_planet:
+		return "planet:%s:%s:%d" % [obj.planet_img, str(obj.has_starbase), obj.starbase_style]
+	return "ship:%d:%d" % [obj.hull_id, _squadron_visual_count(obj)]
 
 func _squadron_visual_count(obj: CombatObject) -> int:
 	if not ShipData.is_squadron_hull(obj.hull_id):
@@ -623,6 +632,9 @@ func _refresh_view() -> void:
 		engine.state.right.obj
 	)
 
+	_refresh_dynamic_ship_visuals()
+	_apply_weapon_titles()
+
 	left_beam_bank.set_values(engine.state.left.beam_status, engine.state.left.obj.beam_count)
 	left_torp_bank.set_values(engine.state.left.torp_status, engine.state.left.obj.torp_launcher_count)
 	left_bay_bank.set_values(_build_bay_status(engine.state.left), _visible_bay_slot_count(engine.state.left.obj))
@@ -662,6 +674,18 @@ func _refresh_view() -> void:
 	right_ship.position = Vector2(right_x, SHIP_Y)
 
 	_refresh_fighters()
+
+
+func _refresh_dynamic_ship_visuals() -> void:
+	var left_key: String = _side_visual_key(engine.state.left.obj)
+	if left_key != _left_visual_key:
+		_apply_side_visual(left_ship, engine.state.left.obj)
+		_left_visual_key = left_key
+
+	var right_key: String = _side_visual_key(engine.state.right.obj)
+	if right_key != _right_visual_key:
+		_apply_side_visual(right_ship, engine.state.right.obj)
+		_right_visual_key = right_key
 
 
 func _update_ammo_labels(fighters_label: Label, torps_label: Label, obj: CombatObject) -> void:
@@ -2178,6 +2202,7 @@ func _create_builder_object(side_key: String) -> CombatObject:
 	obj.hull_id = 0 if is_planet else _option_id(controls, "hull")
 	obj.is_planet = is_planet
 	obj.object_name = "Planet" if is_planet else String(ShipData.get_hull(obj.hull_id).get("name", "Ship"))
+	_apply_builder_hull_abilities(obj)
 
 	if is_planet:
 		_apply_builder_planet_values(obj, controls)
@@ -2265,6 +2290,12 @@ func _apply_builder_horwasp_ship_values(obj: CombatObject, controls: Dictionary)
 	obj.crew_defense_rate = 100
 	obj.torp_range = ShipData.get_torp_range(obj.torp_type)
 	obj.damage_limit = 100
+
+
+func _apply_builder_hull_abilities(obj: CombatObject) -> void:
+	obj.component_hull_ids = ShipData.get_stacked_component_ids(obj.hull_id)
+	obj.is_squadron = ShipData.is_squadron_hull(obj.hull_id)
+	obj.is_elusive = ShipData.is_elusive_hull(obj.hull_id)
 
 
 func _horwasp_fighter_count(hull_id: int, clans: int, cargo_capacity: int) -> int:

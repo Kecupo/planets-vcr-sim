@@ -43,6 +43,7 @@ static func create_ship_from_hull(
 	obj.race_id = race_id
 	obj.hull_id = hull_id
 	obj.component_hull_ids = ShipData.get_stacked_component_ids(hull_id)
+	_apply_hull_abilities(obj)
 	obj.is_planet = false
 
 	obj.beam_type = beam_type
@@ -123,6 +124,7 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 	obj.race_id = int(data.get("raceid", 0))
 	obj.hull_id = int(data.get("hullid", 0))
 	obj.component_hull_ids = ShipData.get_stacked_component_ids(obj.hull_id)
+	_apply_hull_abilities(obj)
 	obj.is_planet = false
 	
 	obj.beam_type = int(data.get("beamid", 0))
@@ -155,6 +157,11 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 	obj.damage_limit = 150 if obj.race_id == 2 else 100
 	obj.has_starbase = bool(data.get("hasstarbase", false))
 	return obj
+
+
+static func _apply_hull_abilities(obj: CombatObject) -> void:
+	obj.is_squadron = ShipData.is_squadron_hull(obj.hull_id)
+	obj.is_elusive = ShipData.is_elusive_hull(obj.hull_id)
 	
 static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()

@@ -12,12 +12,16 @@ class SideState:
 	var cur_x: int = 0
 	var side: int = CombatTypes.Side.LEFT
 	var num_fighters_out: int = 0
+	var initial_shield: int = 100
+	var initial_crew: int = 0
 
 	func setup(p_obj: CombatObject, p_side: int) -> void:
 		obj = p_obj.duplicate_object()
 		side = p_side
 		cur_x = 0
 		num_fighters_out = 0
+		initial_shield = obj.shield
+		initial_crew = obj.crew
 
 		beam_status = PackedInt32Array()
 		torp_status = PackedInt32Array()

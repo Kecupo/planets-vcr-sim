@@ -169,6 +169,7 @@ func _load_hulls_from_rst(rst: Dictionary) -> void:
 		hulls[id] = {
 			"name": String(entry.get("name", "Unknown Hull")),
 			"imageid": int(entry.get("imageid", entry.get("image", 0))),
+			"special": String(entry.get("special", "")),
 			"mass": int(entry.get("mass", 0)),
 			"cargo": int(entry.get("cargo", 0)),
 			"crew": int(entry.get("crew", 0)),
@@ -256,8 +257,17 @@ func is_squadron_hull(hull_id: int) -> bool:
 	if hull_id in [1065, 2065, 1071, 2071]:
 		return true
 
+	var special: String = String(get_hull(hull_id).get("special", "")).to_lower()
+	if special.find("squadron") >= 0:
+		return true
+
 	var hull_name: String = String(get_hull(hull_id).get("name", "")).to_lower()
 	return hull_name.find("gunboats") >= 0
+
+
+func is_elusive_hull(hull_id: int) -> bool:
+	var special: String = String(get_hull(hull_id).get("special", "")).to_lower()
+	return special.find("elusive") >= 0
 
 
 func is_stacked_hull(hull_id: int) -> bool:
