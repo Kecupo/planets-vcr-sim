@@ -16,6 +16,7 @@ data_*/
 mono_crash.*.json
 *.json
 *.js
+!default_ship_data.json
 project.godot
 Planets VCR Sim.sln
 Planets VCR Sim.csproj

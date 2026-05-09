@@ -102,17 +102,27 @@ var SHIP_Y: float = 0.0
 const FIGHTER_VIEW_SCENE := preload("res://Scenes/Combat/fighter_sprite_2d.tscn")
 const DEFAULT_TURN_FILE: String = "user://latest_turn.json"
 const PROJECT_TURN_FILE: String = "res://latest_turn.json"
+const PROJECT_DEFAULT_SHIP_DATA_FILE: String = "res://default_ship_data.json"
 
 func _ready() -> void:
 	var turn_file_path: String = _resolve_turn_file_path()
+	var loaded_ship_data: bool = false
 
 	if turn_file_path != "" and FileAccess.file_exists(turn_file_path):
 		if ShipData.load_from_turn_file(turn_file_path):
+			loaded_ship_data = true
 			_load_turn_file(turn_file_path)
 		else:
 			print("Could not load weapon/spec data from ", turn_file_path)
 	else:
 		print("No latest_turn.json found; starting without loaded VCRs.")
+
+	if not loaded_ship_data and FileAccess.file_exists(PROJECT_DEFAULT_SHIP_DATA_FILE):
+		if ShipData.load_from_turn_file(PROJECT_DEFAULT_SHIP_DATA_FILE):
+			loaded_ship_data = true
+			_load_turn_file(PROJECT_DEFAULT_SHIP_DATA_FILE)
+		else:
+			print("Could not load default ship data from ", PROJECT_DEFAULT_SHIP_DATA_FILE)
 
 	_ensure_battle_builder_ui()
 	_ensure_status_bars()
@@ -156,9 +166,15 @@ func _resolve_turn_file_path() -> String:
 		if arg.to_lower().ends_with(".json"):
 			return arg
 
+	var executable_path: String = OS.get_executable_path()
+	if executable_path != "":
+		var executable_turn_file: String = executable_path.get_base_dir().path_join("latest_turn.json")
+		if FileAccess.file_exists(executable_turn_file):
+			return executable_turn_file
+
 	if FileAccess.file_exists(DEFAULT_TURN_FILE):
 		return DEFAULT_TURN_FILE
-	if FileAccess.file_exists(PROJECT_TURN_FILE):
+	if OS.has_feature("editor") and FileAccess.file_exists(PROJECT_TURN_FILE):
 		return PROJECT_TURN_FILE
 	return ""
 
@@ -210,13 +226,14 @@ func _apply_ui_layout() -> void:
 
 	simulate_button.position = Vector2(bx, by + 1.0)
 	simulate_button.size = Vector2(bw + 20.0, bh)
+	simulate_button.visible = false
 
 	close_app_button.position = Vector2(w - 135.0, by)
 	close_app_button.size = Vector2(110.0, bh)
 
 	if battle_sim_button != null:
 		var battle_button_w: float = 178.0
-		var sim_right: float = simulate_button.position.x + simulate_button.size.x
+		var sim_right: float = reset_button.position.x + reset_button.size.x
 		var close_left: float = close_app_button.position.x
 		var centered_x: float = ((sim_right + close_left) * 0.5) - battle_button_w * 0.5
 		battle_sim_button.position = Vector2(clamp(centered_x, sim_right + gap, close_left - battle_button_w - gap), 1.0)
