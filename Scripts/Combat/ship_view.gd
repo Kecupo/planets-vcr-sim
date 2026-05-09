@@ -37,6 +37,18 @@ func set_ship_texture(hull_id: int, squadron_count: int = 1) -> void:
 	base_sprite.visible = false
 	_clear_squadron_sprites()
 	_visual_size_override = Vector2.ZERO
+	var component_hull_ids: Array[int] = ShipData.get_stacked_component_ids(hull_id)
+	if component_hull_ids.size() > 1:
+		_setup_component_sprites(component_hull_ids)
+		return
+
+	var squadron_path: String = _find_squadron_texture_path(hull_id, squadron_count)
+	if squadron_path != "":
+		sprite.texture = load(squadron_path)
+		sprite.visible = true
+		_apply_texture_scale(sprite, 300.0, 200.0)
+		return
+
 	var path: String = _find_ship_texture_path(hull_id)
 
 	if ResourceLoader.exists(path):
@@ -51,6 +63,18 @@ func set_ship_texture(hull_id: int, squadron_count: int = 1) -> void:
 		sprite.texture = null
 		sprite.visible = false
 
+func _find_squadron_texture_path(hull_id: int, squadron_count: int) -> String:
+	if squadron_count <= 1:
+		return ""
+
+	for image_id: int in ShipData.get_hull_image_ids(hull_id):
+		var path := "res://Assets/Ships/%d-%d.png" % [image_id, squadron_count]
+		if ResourceLoader.exists(path):
+			return path
+
+	return ""
+
+
 func _find_ship_texture_path(hull_id: int) -> String:
 	for image_id: int in ShipData.get_hull_image_ids(hull_id):
 		var path := "res://Assets/Ships/%d.png" % image_id
@@ -58,6 +82,35 @@ func _find_ship_texture_path(hull_id: int) -> String:
 			return path
 
 	return "res://Assets/Ships/%d.png" % ShipData.get_hull_image_id(hull_id)
+
+
+func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
+	sprite.visible = false
+	sprite.texture = null
+	var textures: Array[Texture2D] = []
+	for component_hull_id: int in component_hull_ids:
+		var path: String = _find_ship_texture_path(component_hull_id)
+		if ResourceLoader.exists(path):
+			textures.append(load(path))
+
+	if textures.is_empty():
+		_visual_size_override = Vector2.ZERO
+		return
+
+	var positions: Array[Vector2] = _squadron_positions(min(textures.size(), 4))
+	var target_width: float = 170.0
+	var target_height: float = 110.0
+	for i: int in range(min(textures.size(), positions.size())):
+		var component_sprite: Sprite2D = Sprite2D.new()
+		component_sprite.texture = textures[i]
+		component_sprite.centered = true
+		component_sprite.position = positions[i]
+		component_sprite.flip_h = facing_left
+		add_child(component_sprite)
+		_apply_texture_scale(component_sprite, target_width, target_height)
+		_squadron_sprites.append(component_sprite)
+
+	_visual_size_override = Vector2(300.0, 190.0)
 
 
 func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:

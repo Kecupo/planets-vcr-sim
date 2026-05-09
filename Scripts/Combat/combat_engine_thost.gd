@@ -30,6 +30,7 @@ func _get_torp_kill(torp_id: int) -> int:
 	return ShipData.get_torp_kill(torp_id)
 	
 func init_vcr(vcr: ClassicVcr) -> void:
+	vcr.ensure_fleets()
 	state = CombatState.new()
 	state.time = 0
 	state.status_word = CombatConstants.VCRS_NONE

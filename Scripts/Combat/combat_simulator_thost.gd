@@ -254,7 +254,17 @@ func _clone_vcr_with_seed(source: ClassicVcr, battle_seed: int) -> ClassicVcr:
 	vcr.battle_type = source.battle_type
 	vcr.left = _clone_combat_object(source.left)
 	vcr.right = _clone_combat_object(source.right)
+	vcr.left_fleet = _clone_fleet(source.left_fleet)
+	vcr.right_fleet = _clone_fleet(source.right_fleet)
+	vcr.ensure_fleets()
 	return vcr
+
+
+func _clone_fleet(source: Array[CombatObject]) -> Array[CombatObject]:
+	var result: Array[CombatObject] = []
+	for obj: CombatObject in source:
+		result.append(_clone_combat_object(obj))
+	return result
 
 
 func _clone_combat_object(src: CombatObject) -> CombatObject:
@@ -268,6 +278,7 @@ func _clone_combat_object(src: CombatObject) -> CombatObject:
 	obj.owner_id = src.owner_id
 	obj.race_id = src.race_id
 	obj.hull_id = src.hull_id
+	obj.component_hull_ids = src.component_hull_ids.duplicate()
 	obj.is_planet = src.is_planet
 
 	obj.beam_type = src.beam_type

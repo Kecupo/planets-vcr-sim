@@ -12,8 +12,10 @@ static func create_test_vcr() -> ClassicVcr:
 	vcr.battle_type = CombatConstants.SHIP_TO_SHIP
 
 	# Schiffe erzeugen
-	vcr.left = create_ship_from_hull(35, 1, 6, 10, 10, 10, 10, 6, 0, 100)
-	vcr.right = create_ship_from_hull(99, 2, 10, 10, 10, 10, 0, 0, 8, 36)
+	vcr.set_single_combatants(
+		create_ship_from_hull(35, 1, 6, 10, 10, 10, 10, 6, 0, 100),
+		create_ship_from_hull(99, 2, 10, 10, 10, 10, 0, 0, 8, 36)
+	)
 
 	return vcr
 	
@@ -40,6 +42,7 @@ static func create_ship_from_hull(
 	obj.owner_id = owner_id
 	obj.race_id = race_id
 	obj.hull_id = hull_id
+	obj.component_hull_ids = ShipData.get_stacked_component_ids(hull_id)
 	obj.is_planet = false
 
 	obj.beam_type = beam_type
@@ -101,10 +104,14 @@ static func create_vcr_from_turn_vcr_dict(data: Dictionary) -> ClassicVcr:
 
 	var left_data: Dictionary = data.get("left", {})
 	var right_data: Dictionary = data.get("right", {})
+	vcr.set_single_combatants(
+		create_combat_object_from_turn_side(left_data, int(data.get("leftownerid", 0))),
+		create_combat_object_from_turn_side(right_data, int(data.get("rightownerid", 0)))
+	)
 	if vcr.battle_type != 0:
 		vcr.right.is_planet = true
-	vcr.left = create_combat_object_from_turn_side(left_data, int(data.get("leftownerid", 0)))
-	vcr.right = create_combat_object_from_turn_side(right_data, int(data.get("rightownerid", 0)))
+		if not vcr.right_fleet.is_empty():
+			vcr.right_fleet[0].is_planet = true
 
 	return vcr
 	
@@ -115,6 +122,7 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 	obj.owner_id = owner_id
 	obj.race_id = int(data.get("raceid", 0))
 	obj.hull_id = int(data.get("hullid", 0))
+	obj.component_hull_ids = ShipData.get_stacked_component_ids(obj.hull_id)
 	obj.is_planet = false
 	
 	obj.beam_type = int(data.get("beamid", 0))
@@ -157,10 +165,14 @@ static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var left_data: Dictionary = data.get("left", {})
 	var right_data: Dictionary = data.get("right", {})
 
-	vcr.left = create_combat_object_from_turn_side(left_data, int(data.get("leftownerid", 0)))
-	vcr.right = create_combat_object_from_turn_side(right_data, int(data.get("rightownerid", 0)))
+	vcr.set_single_combatants(
+		create_combat_object_from_turn_side(left_data, int(data.get("leftownerid", 0))),
+		create_combat_object_from_turn_side(right_data, int(data.get("rightownerid", 0)))
+	)
 
 	if vcr.battle_type != 0:
 		vcr.right.is_planet = true
+		if not vcr.right_fleet.is_empty():
+			vcr.right_fleet[0].is_planet = true
 
 	return vcr

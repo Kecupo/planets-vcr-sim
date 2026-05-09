@@ -543,7 +543,7 @@ func _apply_side_visual(view: ShipView, obj: CombatObject) -> void:
 func _squadron_visual_count(obj: CombatObject) -> int:
 	if not ShipData.is_squadron_hull(obj.hull_id):
 		return 1
-	return clamp(obj.beam_count, 1, 4)
+	return clamp(obj.beam_count, 1, 5)
 		
 func _rebuild_fighters() -> void:
 	for child: Node in fighters_layer.get_children():
@@ -2128,8 +2128,7 @@ func _apply_builder_side_settings(side_key: String, settings: Dictionary) -> voi
 func _create_builder_vcr() -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
 	vcr.battle_seed = 1
-	vcr.left = _create_builder_object("left")
-	vcr.right = _create_builder_object("right")
+	vcr.set_single_combatants(_create_builder_object("left"), _create_builder_object("right"))
 
 	if vcr.right.is_planet:
 		vcr.battle_type = CombatConstants.SHIP_TO_PLANET

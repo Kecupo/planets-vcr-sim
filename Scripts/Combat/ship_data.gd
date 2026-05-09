@@ -6,6 +6,29 @@ var beams: Dictionary = {}
 var torps: Dictionary = {}
 var engines: Dictionary = {}
 var hulls: Dictionary = {}
+const STACKED_HULL_COMPONENTS: Dictionary = {
+	150: [98, 103],
+	151: [95, 98],
+	152: [98, 100],
+	153: [98, 92],
+	154: [98, 101],
+	155: [102, 98],
+	156: [95, 103],
+	157: [95, 100],
+	158: [95, 92],
+	159: [95, 101],
+	160: [95, 102],
+	161: [103, 100],
+	162: [103, 92],
+	163: [103, 101],
+	164: [102, 103],
+	165: [92, 100],
+	166: [101, 100],
+	167: [102, 100],
+	168: [101, 92],
+	169: [102, 92],
+	170: [102, 101]
+}
 
 func load_from_turn_file(path: String) -> bool:
 	if not FileAccess.file_exists(path):
@@ -235,6 +258,18 @@ func is_squadron_hull(hull_id: int) -> bool:
 
 	var hull_name: String = String(get_hull(hull_id).get("name", "")).to_lower()
 	return hull_name.find("gunboats") >= 0
+
+
+func is_stacked_hull(hull_id: int) -> bool:
+	return STACKED_HULL_COMPONENTS.has(hull_id)
+
+
+func get_stacked_component_ids(hull_id: int) -> Array[int]:
+	var result: Array[int] = []
+	var raw_components: Array = STACKED_HULL_COMPONENTS.get(hull_id, [])
+	for component_id in raw_components:
+		result.append(int(component_id))
+	return result
 
 
 func _append_image_candidate(candidates: Array[int], image_id: int) -> void:
