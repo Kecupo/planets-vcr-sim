@@ -1944,6 +1944,7 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 	var available_beams: int = min(max_beams, damage_weapon_limit)
 	var available_tubes: int = min(max_tubes, damage_weapon_limit)
 	var available_bays: int = min(max_bays, damage_weapon_limit)
+	var can_have_shields: bool = available_beams > 0 or ShipData.keeps_shields_without_beams(hull_id)
 
 	_set_spin_max_value(controls, "beam_count", available_beams)
 	_set_spin_max_value(controls, "torp_count", available_tubes)
@@ -1981,7 +1982,7 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 			(controls["red_wind_fighters"] as SpinBox).value = _red_wind_max_fighters()
 		(controls["mass"] as SpinBox).value = max(1, mass)
 		(controls["crew"] as SpinBox).value = max(1, int(hull.get("crew", 0)))
-		(controls["shield"] as SpinBox).value = 100 if available_beams > 0 else 0
+		(controls["shield"] as SpinBox).value = 100 if can_have_shields else 0
 		(controls["beam_count"] as SpinBox).value = available_beams
 		(controls["torp_count"] as SpinBox).value = available_tubes
 		(controls["bay_count"] as SpinBox).value = available_bays
@@ -2056,8 +2057,9 @@ func _update_builder_shield_rule(side_key: String) -> void:
 		(controls["shield"] as SpinBox).value = 0
 		return
 
+	var hull_id: int = _option_id(controls, "hull")
 	var has_beams: bool = _option_id(controls, "beam_type") > 0 and _spin_value(controls, "beam_count") > 0
-	if has_beams:
+	if has_beams or ShipData.keeps_shields_without_beams(hull_id):
 		_set_builder_enabled(controls["shield"], true)
 	else:
 		(controls["shield"] as SpinBox).value = 0
@@ -2241,7 +2243,7 @@ func _create_builder_object(side_key: String) -> CombatObject:
 		obj.beam_count = 0
 	if obj.torp_type <= 0:
 		obj.torp_launcher_count = 0
-	if not obj.is_planet and obj.beam_count <= 0:
+	if not obj.is_planet and obj.beam_count <= 0 and not ShipData.keeps_shields_without_beams(obj.hull_id):
 		obj.shield = 0
 
 	obj.beam_kill_rate = 1
@@ -2258,7 +2260,7 @@ func _create_builder_object(side_key: String) -> CombatObject:
 	_apply_builder_damage_weapon_limits(obj)
 	_apply_builder_fed_bay_bonus(obj)
 	_apply_builder_red_wind_support(obj, controls)
-	if not obj.is_planet and obj.beam_count <= 0:
+	if not obj.is_planet and obj.beam_count <= 0 and not ShipData.keeps_shields_without_beams(obj.hull_id):
 		obj.shield = 0
 	return obj
 

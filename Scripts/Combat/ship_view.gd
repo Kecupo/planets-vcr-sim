@@ -7,8 +7,13 @@ extends Node2D
 @onready var sprite: Sprite2D = $Sprite2D
 @onready var base_sprite: Sprite2D = $BaseSprite2d
 @onready var name_label: Label = $NameLabel
+const MULTI_SPRITE_SLOTS: int = 5
 var _squadron_sprites: Array[Sprite2D] = []
 var _visual_size_override: Vector2 = Vector2.ZERO
+
+
+func _ready() -> void:
+	_ensure_multi_sprites()
 	
 func set_ship_name(value: String) -> void:
 	name_label.text = value
@@ -42,21 +47,13 @@ func set_ship_texture(hull_id: int, squadron_count: int = 1) -> void:
 		_setup_component_sprites(component_hull_ids)
 		return
 
-	var squadron_path: String = _find_squadron_texture_path(hull_id, squadron_count)
-	if squadron_path != "":
-		sprite.texture = load(squadron_path)
-		sprite.visible = true
-		_apply_texture_scale(sprite, 300.0, 200.0)
-		_visual_size_override = Vector2(300.0, 190.0)
-		return
-
 	var path: String = _find_ship_texture_path(hull_id)
 
 	if ResourceLoader.exists(path):
 		sprite.texture = load(path)
 		sprite.visible = true
 
-		if squadron_count > 1:
+		if ShipData.is_squadron_hull(hull_id):
 			_setup_squadron_sprites(sprite.texture, squadron_count)
 		else:
 			_apply_texture_scale(sprite, 300.0, 200.0)
@@ -86,6 +83,7 @@ func _find_ship_texture_path(hull_id: int) -> String:
 
 
 func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
+	_ensure_multi_sprites()
 	sprite.visible = false
 	sprite.texture = null
 	var textures: Array[Texture2D] = []
@@ -102,14 +100,13 @@ func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
 	var target_width: float = 190.0
 	var target_height: float = 90.0
 	for i: int in range(min(textures.size(), positions.size())):
-		var component_sprite: Sprite2D = Sprite2D.new()
+		var component_sprite: Sprite2D = _squadron_sprites[i]
 		component_sprite.texture = textures[i]
 		component_sprite.centered = true
 		component_sprite.position = positions[i]
 		component_sprite.flip_h = facing_left
-		add_child(component_sprite)
+		component_sprite.visible = true
 		_apply_texture_scale(component_sprite, target_width, target_height)
-		_squadron_sprites.append(component_sprite)
 
 	_visual_size_override = Vector2(300.0, 190.0)
 
@@ -126,6 +123,7 @@ func _component_positions(count: int) -> Array[Vector2]:
 
 
 func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:
+	_ensure_multi_sprites()
 	sprite.visible = false
 	sprite.texture = texture
 	var count: int = clamp(squadron_count, 1, 5)
@@ -133,15 +131,14 @@ func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:
 	var target_height: float = 95.0
 	var positions: Array[Vector2] = _squadron_positions(count)
 
-	for offset: Vector2 in positions:
-		var squadron_sprite: Sprite2D = Sprite2D.new()
+	for i: int in range(positions.size()):
+		var squadron_sprite: Sprite2D = _squadron_sprites[i]
 		squadron_sprite.texture = texture
 		squadron_sprite.centered = true
-		squadron_sprite.position = offset
+		squadron_sprite.position = positions[i]
 		squadron_sprite.flip_h = facing_left
-		add_child(squadron_sprite)
+		squadron_sprite.visible = true
 		_apply_texture_scale(squadron_sprite, target_width, target_height)
-		_squadron_sprites.append(squadron_sprite)
 
 	_visual_size_override = Vector2(300.0, 190.0)
 
@@ -160,11 +157,26 @@ func _squadron_positions(count: int) -> Array[Vector2]:
 
 
 func _clear_squadron_sprites() -> void:
+	_ensure_multi_sprites()
 	for squadron_sprite: Sprite2D in _squadron_sprites:
 		if is_instance_valid(squadron_sprite):
-			remove_child(squadron_sprite)
-			squadron_sprite.queue_free()
-	_squadron_sprites.clear()
+			squadron_sprite.visible = false
+			squadron_sprite.texture = null
+			squadron_sprite.position = Vector2.ZERO
+
+
+func _ensure_multi_sprites() -> void:
+	if _squadron_sprites.size() >= MULTI_SPRITE_SLOTS:
+		return
+
+	for i: int in range(_squadron_sprites.size(), MULTI_SPRITE_SLOTS):
+		var multi_sprite: Sprite2D = Sprite2D.new()
+		multi_sprite.name = "MultiSprite%d" % (i + 1)
+		multi_sprite.centered = true
+		multi_sprite.visible = false
+		multi_sprite.flip_h = facing_left
+		add_child(multi_sprite)
+		_squadron_sprites.append(multi_sprite)
 			
 func set_planet_texture(filename: String) -> void:
 	base_sprite.visible = false
