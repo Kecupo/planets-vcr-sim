@@ -116,11 +116,11 @@ func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
 func _component_positions(count: int) -> Array[Vector2]:
 	match count:
 		2:
-			return [Vector2(0.0, -48.0), Vector2(0.0, 48.0)]
+			return [Vector2(0.0, -26.0), Vector2(0.0, 26.0)]
 		3:
-			return [Vector2(0.0, -62.0), Vector2(0.0, 0.0), Vector2(0.0, 62.0)]
+			return [Vector2(0.0, -34.0), Vector2(0.0, 0.0), Vector2(0.0, 34.0)]
 		4:
-			return [Vector2(-50.0, -48.0), Vector2(50.0, -48.0), Vector2(-50.0, 48.0), Vector2(50.0, 48.0)]
+			return [Vector2(-34.0, -26.0), Vector2(34.0, -26.0), Vector2(-34.0, 26.0), Vector2(34.0, 26.0)]
 	return [Vector2.ZERO]
 
 
