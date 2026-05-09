@@ -88,6 +88,8 @@ var TOP_UI_HEIGHT: float = 95.0
 var BOTTOM_UI_HEIGHT: float = 120.0
 var BATTLE_LEFT_MARGIN: float = 30.0
 var BATTLE_RIGHT_MARGIN: float = 30.0
+var _visual_track_left_bound: float = 30.0
+var _visual_track_right_bound: float = 610.0
 
 var BATTLE_TOP: float = 95.0
 var BATTLE_BOTTOM: float = 600.0
@@ -643,16 +645,14 @@ func _refresh_view() -> void:
 	right_torp_bank.set_values(engine.state.right.torp_status, engine.state.right.obj.torp_launcher_count)
 	right_bay_bank.set_values(_build_bay_status(engine.state.right), _visible_bay_slot_count(engine.state.right.obj))
 
-	var left_center_x: float = battle_x_to_screen_x(engine.state.left.cur_x)
-	var right_center_x: float = battle_x_to_screen_x(engine.state.right.cur_x)
-
 	var left_half_w: float = left_ship.get_visual_width() * 0.5
 	var right_half_w: float = right_ship.get_visual_width() * 0.5
 
 	var viewport_width: float = get_viewport_rect().size.x
+	_update_visual_track_bounds(left_half_w, right_half_w, viewport_width)
 
-	var left_x: float = max(left_half_w + 6.0, left_center_x)
-	var right_x: float = min(viewport_width - right_half_w - 6.0, right_center_x)
+	var left_x: float = battle_x_to_screen_x(engine.state.left.cur_x)
+	var right_x: float = battle_x_to_screen_x(engine.state.right.cur_x)
 
 	var min_gap: float = 24.0
 	var desired_distance: float = left_half_w + right_half_w + min_gap
@@ -661,14 +661,21 @@ func _refresh_view() -> void:
 	var actual_distance: float = min(desired_distance, max_possible_distance)
 
 	if right_x - left_x < actual_distance:
-		var mid_x: float = (left_center_x + right_center_x) * 0.5
+		var mid_x: float = (left_x + right_x) * 0.5
 
 		left_x = mid_x - actual_distance * 0.5
 		right_x = mid_x + actual_distance * 0.5
 
-	# final clamp (sehr wichtig!)
-	left_x = clamp(left_x, left_half_w + 6.0, viewport_width - right_half_w - actual_distance)
-	right_x = clamp(right_x, left_x + actual_distance, viewport_width - right_half_w - 6.0)
+	var min_left_x: float = left_half_w + 6.0
+	var max_right_x: float = viewport_width - right_half_w - 6.0
+	if left_x < min_left_x:
+		var shift_right: float = min_left_x - left_x
+		left_x += shift_right
+		right_x += shift_right
+	if right_x > max_right_x:
+		var shift_left: float = right_x - max_right_x
+		left_x -= shift_left
+		right_x -= shift_left
 
 	left_ship.position = Vector2(left_x, SHIP_Y)
 	right_ship.position = Vector2(right_x, SHIP_Y)
@@ -933,10 +940,23 @@ func _take_torp_hit_projectile(target_side: int) -> CombatProjectileView:
 
 
 func battle_x_to_screen_x(v: float) -> float:
-	var viewport_width: float = get_viewport_rect().size.x
-	var left_bound: float = BATTLE_LEFT_MARGIN
-	var right_bound: float = viewport_width - BATTLE_RIGHT_MARGIN
-	return lerpf(left_bound, right_bound, clampf(v / 640.0, 0.0, 1.0))
+	return lerpf(_visual_track_left_bound, _visual_track_right_bound, clampf(_battle_x_ratio(v), 0.0, 1.0))
+
+
+func _update_visual_track_bounds(left_half_w: float, right_half_w: float, viewport_width: float) -> void:
+	_visual_track_left_bound = max(BATTLE_LEFT_MARGIN, left_half_w + 6.0)
+	_visual_track_right_bound = min(viewport_width - BATTLE_RIGHT_MARGIN, viewport_width - right_half_w - 6.0)
+	if _visual_track_right_bound <= _visual_track_left_bound:
+		_visual_track_left_bound = viewport_width * 0.25
+		_visual_track_right_bound = viewport_width * 0.75
+
+
+func _battle_x_ratio(v: float) -> float:
+	var min_x: float = 30.0
+	var max_x: float = 610.0
+	if engine != null and engine.state.battle_type != CombatConstants.SHIP_TO_SHIP:
+		max_x = 570.0
+	return (v - min_x) / max(1.0, max_x - min_x)
 
 func _fighter_lane_y_left(track_id: int) -> float:
 	return SHIP_Y - 90.0 + float(track_id % 8) * 16.0
@@ -2459,10 +2479,7 @@ func _apply_builder_damage_weapon_limits(obj: CombatObject) -> void:
 	obj.beam_count = min(obj.beam_count, max_weapons)
 		
 func battle_x_to_screen_x_unclamped(v: float) -> float:
-	var viewport_width: float = get_viewport_rect().size.x
-	var left_bound: float = BATTLE_LEFT_MARGIN
-	var right_bound: float = viewport_width - BATTLE_RIGHT_MARGIN
-	return lerpf(left_bound, right_bound, v / 640.0)
+	return lerpf(_visual_track_left_bound, _visual_track_right_bound, _battle_x_ratio(v))
 	
 func _find_target_fighter_pos(target_side: int, battle_x: float) -> Vector2:
 	var best_dist: float = 999999.0
