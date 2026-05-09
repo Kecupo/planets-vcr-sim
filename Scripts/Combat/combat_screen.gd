@@ -70,6 +70,8 @@ var _fighter_views_right: Array[FighterView] = []
 var _pending_torp_hit_projectiles: Dictionary = {}
 var _left_visual_key: String = ""
 var _right_visual_key: String = ""
+var left_status_bar: ShieldDamageBar = null
+var right_status_bar: ShieldDamageBar = null
 
 var _running: bool = false
 var _run_speed: int = 1
@@ -113,6 +115,7 @@ func _ready() -> void:
 		print("No latest_turn.json found; starting without loaded VCRs.")
 
 	_ensure_battle_builder_ui()
+	_ensure_status_bars()
 	_apply_ui_layout()
 	if not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
 		get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -128,6 +131,22 @@ func _on_viewport_size_changed() -> void:
 	_apply_ui_layout()
 	if engine != null:
 		_refresh_view()
+
+
+func _ensure_status_bars() -> void:
+	if left_status_bar == null:
+		left_status_bar = ShieldDamageBar.new()
+		left_status_bar.name = "LeftStatusBar"
+		left_info_panel.add_child(left_status_bar)
+	if right_status_bar == null:
+		right_status_bar = ShieldDamageBar.new()
+		right_status_bar.name = "RightStatusBar"
+		right_info_panel.add_child(right_status_bar)
+
+	left_shield_label.visible = false
+	left_damage_label.visible = false
+	right_shield_label.visible = false
+	right_damage_label.visible = false
 
 func _resolve_turn_file_path() -> String:
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
@@ -257,32 +276,42 @@ func _apply_ui_layout() -> void:
 
 	right_info_panel.position = Vector2(w - side_margin - side_info_w, bottom_y + 8.0)
 	right_info_panel.size = Vector2(side_info_w, info_h - 16.0)
-	# Info labels links
-	left_shield_label.position = Vector2(12.0, 10.0)
-	left_damage_label.position = Vector2(12.0, 32.0)
-	left_crew_label.position = Vector2(12.0, 54.0)
-	left_fighters_label.position = Vector2(12.0, 76.0)
-	left_torps_label.position = Vector2(12.0, 98.0)
 
-	var side_label_w: float = max(120.0, side_info_w - 24.0)
-	left_shield_label.size = Vector2(side_label_w, 20.0)
-	left_damage_label.size = Vector2(side_label_w, 20.0)
-	left_crew_label.size = Vector2(side_label_w, 20.0)
-	left_fighters_label.size = Vector2(side_label_w, 20.0)
-	left_torps_label.size = Vector2(side_label_w, 20.0)
+	var status_bar_w: float = 116.0
+	var status_bar_h: float = max(82.0, left_info_panel.size.y - 16.0)
+	if left_status_bar != null:
+		left_status_bar.position = Vector2(12.0, 8.0)
+		left_status_bar.size = Vector2(status_bar_w, status_bar_h)
+		left_status_bar.visible = true
+	if right_status_bar != null:
+		right_status_bar.position = Vector2(12.0, 8.0)
+		right_status_bar.size = Vector2(status_bar_w, status_bar_h)
+		right_status_bar.visible = true
+
+	left_shield_label.visible = false
+	left_damage_label.visible = false
+	right_shield_label.visible = false
+	right_damage_label.visible = false
+
+	var stat_x: float = 46.0
+	var stat_w: float = max(74.0, side_info_w - stat_x - 8.0)
+	var stat_y: float = max(24.0, status_bar_h * 0.5 - 18.0)
+	# Info labels links
+	left_crew_label.position = Vector2(stat_x, stat_y)
+	left_fighters_label.position = Vector2(stat_x, stat_y + 22.0)
+	left_torps_label.position = Vector2(stat_x, stat_y + 44.0)
 
 	# Info labels rechts
-	right_shield_label.position = Vector2(12.0, 10.0)
-	right_damage_label.position = Vector2(12.0, 32.0)
-	right_crew_label.position = Vector2(12.0, 54.0)
-	right_fighters_label.position = Vector2(12.0, 76.0)
-	right_torps_label.position = Vector2(12.0, 98.0)
+	right_crew_label.position = Vector2(stat_x, stat_y)
+	right_fighters_label.position = Vector2(stat_x, stat_y + 22.0)
+	right_torps_label.position = Vector2(stat_x, stat_y + 44.0)
 
-	right_shield_label.size = Vector2(side_label_w, 20.0)
-	right_damage_label.size = Vector2(side_label_w, 20.0)
-	right_crew_label.size = Vector2(side_label_w, 20.0)
-	right_fighters_label.size = Vector2(side_label_w, 20.0)
-	right_torps_label.size = Vector2(side_label_w, 20.0)
+	left_crew_label.size = Vector2(stat_w, 20.0)
+	left_fighters_label.size = Vector2(stat_w, 20.0)
+	left_torps_label.size = Vector2(stat_w, 20.0)
+	right_crew_label.size = Vector2(stat_w, 20.0)
+	right_fighters_label.size = Vector2(stat_w, 20.0)
+	right_torps_label.size = Vector2(stat_w, 20.0)
 	var weapon_x: float = left_info_panel.position.x + left_info_panel.size.x + weapon_gap
 	var weapon_right: float = right_info_panel.position.x - weapon_gap
 	weapon_panel.position = Vector2(weapon_x, bottom_y + 10.0)
@@ -475,6 +504,12 @@ func _show_no_vcr_state() -> void:
 	right_crew_label.text = ""
 	right_fighters_label.text = ""
 	right_torps_label.text = ""
+	if left_status_bar != null:
+		left_status_bar.set_values(0, 0, 100, 100)
+		left_status_bar.visible = false
+	if right_status_bar != null:
+		right_status_bar.set_values(0, 0, 100, 100)
+		right_status_bar.visible = false
 
 	left_beam_title.visible = false
 	left_torp_title.visible = false
@@ -616,8 +651,14 @@ func _refresh_view() -> void:
 	time_label.text = "Time: %d" % engine.state.time
 	distance_label.text = "Distance: %d" % ((engine.state.right.cur_x - engine.state.left.cur_x) * 100)
 
-	left_shield_label.text = "Shield: %d" % engine.state.left.obj.shield
-	left_damage_label.text = "Damage: %d" % engine.state.left.obj.damage
+	if left_status_bar != null:
+		left_status_bar.visible = true
+		left_status_bar.set_values(
+			engine.state.left.obj.shield,
+			engine.state.left.obj.damage,
+			engine.state.left.initial_shield,
+			engine.state.left.obj.damage_limit
+		)
 	left_crew_label.text = "Crew: %d" % engine.state.left.obj.crew
 	_update_ammo_labels(
 		left_fighters_label,
@@ -625,8 +666,14 @@ func _refresh_view() -> void:
 		engine.state.left.obj
 	)
 
-	right_shield_label.text = "Shield: %d" % engine.state.right.obj.shield
-	right_damage_label.text = "Damage: %d" % engine.state.right.obj.damage
+	if right_status_bar != null:
+		right_status_bar.visible = true
+		right_status_bar.set_values(
+			engine.state.right.obj.shield,
+			engine.state.right.obj.damage,
+			engine.state.right.initial_shield,
+			engine.state.right.obj.damage_limit
+		)
 	right_crew_label.text = "Crew: %d" % engine.state.right.obj.crew
 	_update_ammo_labels(
 		right_fighters_label,
