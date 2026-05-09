@@ -1289,34 +1289,29 @@ func _ensure_battle_builder_ui() -> void:
 	_create_side_builder(battle_setup_panel, "left", "Left combatant", 28.0, false)
 	_create_side_builder(battle_setup_panel, "right", "Right combatant", 590.0, true)
 
+	var builder_button_y: float = 670.0
+
 	var apply_button: Button = Button.new()
 	apply_button.name = "ApplyButton"
-	apply_button.text = "Apply battle"
-	apply_button.position = Vector2(760.0, 692.0)
-	apply_button.size = Vector2(130.0, 30.0)
+	apply_button.text = "Start Simulation"
+	apply_button.position = Vector2(760.0, builder_button_y)
+	apply_button.size = Vector2(150.0, 30.0)
+	_style_start_simulation_button(apply_button)
 	battle_setup_panel.add_child(apply_button)
 	apply_button.pressed.connect(_on_builder_apply_pressed)
 
 	var swap_button: Button = Button.new()
 	swap_button.name = "SwapSidesButton"
 	swap_button.text = "Swap sides"
-	swap_button.position = Vector2(620.0, 692.0)
+	swap_button.position = Vector2(620.0, builder_button_y)
 	swap_button.size = Vector2(130.0, 30.0)
 	battle_setup_panel.add_child(swap_button)
 	swap_button.pressed.connect(_on_builder_swap_sides_pressed)
 
-	var load_button: Button = Button.new()
-	load_button.name = "LoadCurrentButton"
-	load_button.text = "Load current"
-	load_button.position = Vector2(900.0, 692.0)
-	load_button.size = Vector2(120.0, 30.0)
-	battle_setup_panel.add_child(load_button)
-	load_button.pressed.connect(_populate_builder_from_current_vcr)
-
 	var close_button: Button = Button.new()
 	close_button.name = "CloseButton"
 	close_button.text = "Close"
-	close_button.position = Vector2(1030.0, 692.0)
+	close_button.position = Vector2(900.0, builder_button_y)
 	close_button.size = Vector2(80.0, 30.0)
 	battle_setup_panel.add_child(close_button)
 	close_button.pressed.connect(func() -> void:
@@ -1357,6 +1352,33 @@ func _style_battle_sim_button(button: Button) -> void:
 	button.add_theme_color_override("font_pressed_color", Color.WHITE)
 	button.add_theme_color_override("font_disabled_color", Color(0.72, 0.78, 0.86, 1.0))
 	button.add_theme_font_size_override("font_size", 16)
+
+
+func _style_start_simulation_button(button: Button) -> void:
+	var normal: StyleBoxFlat = StyleBoxFlat.new()
+	normal.bg_color = Color(0.08, 0.55, 0.25, 1.0)
+	normal.border_color = Color(0.42, 1.0, 0.62, 1.0)
+	normal.set_border_width_all(2)
+	normal.corner_radius_top_left = 5
+	normal.corner_radius_top_right = 5
+	normal.corner_radius_bottom_left = 5
+	normal.corner_radius_bottom_right = 5
+	normal.content_margin_left = 10.0
+	normal.content_margin_right = 10.0
+
+	var hover: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	hover.bg_color = Color(0.10, 0.68, 0.32, 1.0)
+
+	var pressed: StyleBoxFlat = normal.duplicate() as StyleBoxFlat
+	pressed.bg_color = Color(0.05, 0.38, 0.18, 1.0)
+
+	button.add_theme_stylebox_override("normal", normal)
+	button.add_theme_stylebox_override("hover", hover)
+	button.add_theme_stylebox_override("pressed", pressed)
+	button.add_theme_color_override("font_color", Color(0.96, 1.0, 0.96, 1.0))
+	button.add_theme_color_override("font_hover_color", Color.WHITE)
+	button.add_theme_color_override("font_pressed_color", Color.WHITE)
+	button.add_theme_font_size_override("font_size", 14)
 
 
 func _layout_battle_builder_ui() -> void:
