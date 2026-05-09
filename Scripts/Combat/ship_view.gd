@@ -47,6 +47,7 @@ func set_ship_texture(hull_id: int, squadron_count: int = 1) -> void:
 		sprite.texture = load(squadron_path)
 		sprite.visible = true
 		_apply_texture_scale(sprite, 300.0, 200.0)
+		_visual_size_override = Vector2(300.0, 190.0)
 		return
 
 	var path: String = _find_ship_texture_path(hull_id)
@@ -127,9 +128,9 @@ func _component_positions(count: int) -> Array[Vector2]:
 func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:
 	sprite.visible = false
 	sprite.texture = texture
-	var count: int = clamp(squadron_count, 1, 4)
-	var target_width: float = 150.0 if count >= 3 else 175.0
-	var target_height: float = 95.0 if count >= 3 else 115.0
+	var count: int = clamp(squadron_count, 1, 5)
+	var target_width: float = 150.0
+	var target_height: float = 95.0
 	var positions: Array[Vector2] = _squadron_positions(count)
 
 	for offset: Vector2 in positions:
@@ -153,12 +154,15 @@ func _squadron_positions(count: int) -> Array[Vector2]:
 			return [Vector2(0.0, -42.0), Vector2(-62.0, 42.0), Vector2(62.0, 42.0)]
 		4:
 			return [Vector2(-62.0, -42.0), Vector2(62.0, -42.0), Vector2(-62.0, 42.0), Vector2(62.0, 42.0)]
+		5:
+			return [Vector2(0.0, -58.0), Vector2(-70.0, -8.0), Vector2(70.0, -8.0), Vector2(-42.0, 54.0), Vector2(42.0, 54.0)]
 	return [Vector2.ZERO]
 
 
 func _clear_squadron_sprites() -> void:
 	for squadron_sprite: Sprite2D in _squadron_sprites:
 		if is_instance_valid(squadron_sprite):
+			remove_child(squadron_sprite)
 			squadron_sprite.queue_free()
 	_squadron_sprites.clear()
 			
