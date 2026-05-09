@@ -110,6 +110,8 @@ func _ready() -> void:
 
 	_ensure_battle_builder_ui()
 	_apply_ui_layout()
+	if not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
+		get_viewport().size_changed.connect(_on_viewport_size_changed)
 	_connect_buttons()
 	_apply_background()
 	simulation_overlay.visible = false
@@ -117,6 +119,11 @@ func _ready() -> void:
 		_load_current_vcr()
 	else:
 		_show_no_vcr_state()
+
+func _on_viewport_size_changed() -> void:
+	_apply_ui_layout()
+	if engine != null:
+		_refresh_view()
 
 func _resolve_turn_file_path() -> String:
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
@@ -235,11 +242,17 @@ func _apply_ui_layout() -> void:
 	vcr_index_label.size = Vector2(400.0, 24.0)
 	vcr_index_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 
-	left_info_panel.position = Vector2(24.0, bottom_y + 8.0)
-	left_info_panel.size = Vector2(330.0, info_h - 16.0)
+	var side_info_w: float = clampf(w * 0.18, 180.0, 330.0)
+	if w >= 1500.0:
+		side_info_w = 330.0
+	var side_margin: float = 24.0
+	var weapon_gap: float = clampf(w * 0.018, 16.0, 34.0)
 
-	right_info_panel.position = Vector2(w - 354.0, bottom_y + 8.0)
-	right_info_panel.size = Vector2(330.0, info_h - 16.0)
+	left_info_panel.position = Vector2(side_margin, bottom_y + 8.0)
+	left_info_panel.size = Vector2(side_info_w, info_h - 16.0)
+
+	right_info_panel.position = Vector2(w - side_margin - side_info_w, bottom_y + 8.0)
+	right_info_panel.size = Vector2(side_info_w, info_h - 16.0)
 	# Info labels links
 	left_shield_label.position = Vector2(12.0, 10.0)
 	left_damage_label.position = Vector2(12.0, 32.0)
@@ -247,11 +260,12 @@ func _apply_ui_layout() -> void:
 	left_fighters_label.position = Vector2(12.0, 76.0)
 	left_torps_label.position = Vector2(12.0, 98.0)
 
-	left_shield_label.size = Vector2(300.0, 20.0)
-	left_damage_label.size = Vector2(300.0, 20.0)
-	left_crew_label.size = Vector2(300.0, 20.0)
-	left_fighters_label.size = Vector2(300.0, 20.0)
-	left_torps_label.size = Vector2(300.0, 20.0)
+	var side_label_w: float = max(120.0, side_info_w - 24.0)
+	left_shield_label.size = Vector2(side_label_w, 20.0)
+	left_damage_label.size = Vector2(side_label_w, 20.0)
+	left_crew_label.size = Vector2(side_label_w, 20.0)
+	left_fighters_label.size = Vector2(side_label_w, 20.0)
+	left_torps_label.size = Vector2(side_label_w, 20.0)
 
 	# Info labels rechts
 	right_shield_label.position = Vector2(12.0, 10.0)
@@ -260,50 +274,64 @@ func _apply_ui_layout() -> void:
 	right_fighters_label.position = Vector2(12.0, 76.0)
 	right_torps_label.position = Vector2(12.0, 98.0)
 
-	right_shield_label.size = Vector2(300.0, 20.0)
-	right_damage_label.size = Vector2(300.0, 20.0)
-	right_crew_label.size = Vector2(300.0, 20.0)
-	right_fighters_label.size = Vector2(300.0, 20.0)
-	right_torps_label.size = Vector2(300.0, 20.0)
-	weapon_panel.position = Vector2(380.0, bottom_y + 10.0)
-	weapon_panel.size = Vector2(w - 760.0, info_h - 8.0)
+	right_shield_label.size = Vector2(side_label_w, 20.0)
+	right_damage_label.size = Vector2(side_label_w, 20.0)
+	right_crew_label.size = Vector2(side_label_w, 20.0)
+	right_fighters_label.size = Vector2(side_label_w, 20.0)
+	right_torps_label.size = Vector2(side_label_w, 20.0)
+	var weapon_x: float = left_info_panel.position.x + left_info_panel.size.x + weapon_gap
+	var weapon_right: float = right_info_panel.position.x - weapon_gap
+	weapon_panel.position = Vector2(weapon_x, bottom_y + 10.0)
+	weapon_panel.size = Vector2(max(240.0, weapon_right - weapon_x), info_h - 8.0)
 
 	var wp_w: float = weapon_panel.size.x
 
 	var weapon_title_y: float = max(122.0, weapon_panel.size.y - 18.0)
+	var side_weapon_gap: float = clampf(wp_w * 0.04, 20.0, 46.0)
+	var side_weapon_w: float = max(96.0, (wp_w - side_weapon_gap) * 0.5)
+	var right_weapon_x: float = side_weapon_w + side_weapon_gap
+	var tight_weapon_layout: bool = side_weapon_w < 160.0
+	var beam_title_x: float = 0.0
+	var beam_bank_x: float = 20.0
+	var torp_title_x: float = clampf(side_weapon_w * 0.52, 56.0 if tight_weapon_layout else 88.0, 210.0)
+	var torp_bank_x: float = torp_title_x + 20.0
+	var bay_title_x: float = clampf(side_weapon_w * 0.76, 92.0 if tight_weapon_layout else 132.0, 300.0)
+	var bay_bank_x: float = bay_title_x + 20.0
+	var compact_weapon_layout: bool = wp_w < 620.0
+	var beam_slot_w: float = 28.0 if tight_weapon_layout else (32.0 if compact_weapon_layout else 36.0)
 
-	left_beam_title.position = Vector2(0.0, weapon_title_y)
-	left_beam_title.size = Vector2(190.0, 20.0)
+	left_beam_title.position = Vector2(beam_title_x, weapon_title_y)
+	left_beam_title.size = Vector2(140.0, 20.0)
 	_style_weapon_title(left_beam_title)
-	left_beam_bank.position = Vector2(20.0, 0.0)
+	left_beam_bank.position = Vector2(beam_bank_x, 0.0)
 
-	left_torp_title.position = Vector2(210.0, weapon_title_y)
-	left_torp_title.size = Vector2(140.0, 20.0)
+	left_torp_title.position = Vector2(torp_title_x, weapon_title_y)
+	left_torp_title.size = Vector2(120.0, 20.0)
 	_style_weapon_title(left_torp_title)
-	left_torp_bank.position = Vector2(230.0, 0.0)
+	left_torp_bank.position = Vector2(torp_bank_x, 0.0)
 
-	left_bay_title.position = Vector2(300.0, weapon_title_y)
-	left_bay_title.size = Vector2(140.0, 20.0)
+	left_bay_title.position = Vector2(bay_title_x, weapon_title_y)
+	left_bay_title.size = Vector2(120.0, 20.0)
 	_style_weapon_title(left_bay_title)
-	left_bay_bank.position = Vector2(320.0, 0.0)
+	left_bay_bank.position = Vector2(bay_bank_x, 0.0)
 
-	right_beam_title.position = Vector2(wp_w - 430.0, weapon_title_y)
-	right_beam_title.size = Vector2(190.0, 20.0)
+	right_beam_title.position = Vector2(right_weapon_x + beam_title_x, weapon_title_y)
+	right_beam_title.size = Vector2(140.0, 20.0)
 	_style_weapon_title(right_beam_title)
-	right_beam_bank.position = Vector2(wp_w - 410.0, 0.0)
+	right_beam_bank.position = Vector2(right_weapon_x + beam_bank_x, 0.0)
 
-	right_torp_title.position = Vector2(wp_w - 230.0, weapon_title_y)
-	right_torp_title.size = Vector2(140.0, 20.0)
+	right_torp_title.position = Vector2(right_weapon_x + torp_title_x, weapon_title_y)
+	right_torp_title.size = Vector2(120.0, 20.0)
 	_style_weapon_title(right_torp_title)
-	right_torp_bank.position = Vector2(wp_w - 200.0, 0.0)
+	right_torp_bank.position = Vector2(right_weapon_x + torp_bank_x, 0.0)
 
-	right_bay_title.position = Vector2(wp_w - 130.0, weapon_title_y)
-	right_bay_title.size = Vector2(140.0, 20.0)
+	right_bay_title.position = Vector2(right_weapon_x + bay_title_x, weapon_title_y)
+	right_bay_title.size = Vector2(120.0, 20.0)
 	_style_weapon_title(right_bay_title)
-	right_bay_bank.position = Vector2(wp_w - 110.0, 0.0)
+	right_bay_bank.position = Vector2(right_weapon_x + bay_bank_x, 0.0)
 
-	left_beam_bank.set_slot_metrics(36.0, 10.0, 4.0)
-	right_beam_bank.set_slot_metrics(36.0, 10.0, 4.0)
+	left_beam_bank.set_slot_metrics(beam_slot_w, 10.0, 4.0)
+	right_beam_bank.set_slot_metrics(beam_slot_w, 10.0, 4.0)
 
 	left_torp_bank.set_slot_metrics(12.0, 10.0, 4.0)
 	right_torp_bank.set_slot_metrics(12.0, 10.0, 4.0)

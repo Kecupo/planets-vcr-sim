@@ -97,9 +97,9 @@ func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
 		_visual_size_override = Vector2.ZERO
 		return
 
-	var positions: Array[Vector2] = _squadron_positions(min(textures.size(), 4))
-	var target_width: float = 170.0
-	var target_height: float = 110.0
+	var positions: Array[Vector2] = _component_positions(min(textures.size(), 4))
+	var target_width: float = 190.0
+	var target_height: float = 90.0
 	for i: int in range(min(textures.size(), positions.size())):
 		var component_sprite: Sprite2D = Sprite2D.new()
 		component_sprite.texture = textures[i]
@@ -111,6 +111,17 @@ func _setup_component_sprites(component_hull_ids: Array[int]) -> void:
 		_squadron_sprites.append(component_sprite)
 
 	_visual_size_override = Vector2(300.0, 190.0)
+
+
+func _component_positions(count: int) -> Array[Vector2]:
+	match count:
+		2:
+			return [Vector2(0.0, -48.0), Vector2(0.0, 48.0)]
+		3:
+			return [Vector2(0.0, -62.0), Vector2(0.0, 0.0), Vector2(0.0, 62.0)]
+		4:
+			return [Vector2(-50.0, -48.0), Vector2(50.0, -48.0), Vector2(-50.0, 48.0), Vector2(50.0, 48.0)]
+	return [Vector2.ZERO]
 
 
 func _setup_squadron_sprites(texture: Texture2D, squadron_count: int) -> void:
