@@ -42,6 +42,7 @@ anchors_preset = 0
 offset_right = 40.0
 offset_bottom = 40.0
 script = ExtResource("4_nwv4o")
+draw_middle_slants = true
 
 [node name="TopBar" type="Control" parent="UI"]
 layout_mode = 3

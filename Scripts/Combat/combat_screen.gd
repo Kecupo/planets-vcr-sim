@@ -166,12 +166,6 @@ func _resolve_turn_file_path() -> String:
 		if arg.to_lower().ends_with(".json"):
 			return arg
 
-	var executable_path: String = OS.get_executable_path()
-	if executable_path != "":
-		var executable_turn_file: String = executable_path.get_base_dir().path_join("latest_turn.json")
-		if FileAccess.file_exists(executable_turn_file):
-			return executable_turn_file
-
 	if FileAccess.file_exists(DEFAULT_TURN_FILE):
 		return DEFAULT_TURN_FILE
 	if OS.has_feature("editor") and FileAccess.file_exists(PROJECT_TURN_FILE):
