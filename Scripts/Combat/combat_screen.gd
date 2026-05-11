@@ -1699,7 +1699,7 @@ func _is_hull_allowed_for_race(hull_id: int, race_id: int) -> bool:
 
 
 func _is_excluded_builder_hull(hull_id: int) -> bool:
-	if hull_id in [171, 172, 173, 180, 181]:
+	if hull_id in [119, 171, 172, 173, 180, 181, 200, 212]:
 		return true
 
 	var hull: Dictionary = ShipData.get_hull(hull_id)
@@ -1710,7 +1710,7 @@ func _is_excluded_builder_hull(hull_id: int) -> bool:
 
 
 func _is_horwasp_hull(hull_id: int) -> bool:
-	if hull_id in [115, 116, 117, 118, 119, 120, 122, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215]:
+	if hull_id in [115, 116, 117, 118, 119, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215]:
 		return true
 
 	var hull: Dictionary = ShipData.get_hull(hull_id)
