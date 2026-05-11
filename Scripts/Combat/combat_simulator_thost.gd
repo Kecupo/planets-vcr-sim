@@ -261,9 +261,9 @@ func _simulate_fleet_sequence(sim_vcr: ClassicVcr) -> Dictionary:
 			break
 
 		if not this_left_removed:
-			_regenerate_ssg_shield_between_battles(current_left)
+			_prepare_survivor_between_battles(current_left)
 		if not this_right_removed:
-			_regenerate_ssg_shield_between_battles(current_right)
+			_prepare_survivor_between_battles(current_right)
 
 	return {
 		"left_destroyed": left_removed,
@@ -284,6 +284,13 @@ func _simulate_fleet_sequence(sim_vcr: ClassicVcr) -> Dictionary:
 	}
 
 
+func _prepare_survivor_between_battles(obj: CombatObject) -> void:
+	if obj.race_id == 12 and _is_horwasp_hull(obj.hull_id):
+		_repair_horwasp_with_clans(obj)
+		return
+	_regenerate_ssg_shield_between_battles(obj)
+
+
 func _regenerate_ssg_shield_between_battles(obj: CombatObject) -> void:
 	if obj == null:
 		return
@@ -295,6 +302,106 @@ func _regenerate_ssg_shield_between_battles(obj: CombatObject) -> void:
 
 	var max_shield: int = 150 if obj.ssg_support_count > 0 and obj.damage <= 0 else max(0, 100 - obj.damage)
 	obj.shield = min(max_shield, obj.shield + shield_regen)
+
+
+func _repair_horwasp_with_clans(obj: CombatObject) -> void:
+	var clans: int = _horwasp_clans_for_object(obj)
+	if clans > 0 and obj.damage > 0:
+		var repair_data: Dictionary = _repair_horwasp_damage_with_clans(obj, clans)
+		clans = int(repair_data["clans"])
+		obj.damage = int(repair_data["damage"])
+		_apply_horwasp_clans_to_object(obj, clans, true)
+	else:
+		_apply_horwasp_clans_to_object(obj, clans, false)
+
+
+func _repair_horwasp_damage_with_clans(obj: CombatObject, clans: int) -> Dictionary:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var damage: int = clamp(obj.damage, 0, 100)
+	var required_clans: int = int(ceil(float(cargo_capacity) * float(damage) / 100.0))
+	if clans >= required_clans:
+		return {"clans": clans - required_clans, "damage": 0}
+
+	var repaired_damage: int = int(floor(float(clans) * 100.0 / float(cargo_capacity)))
+	return {"clans": 0, "damage": max(0, damage - repaired_damage)}
+
+
+func _is_horwasp_hull(hull_id: int) -> bool:
+	if hull_id in [115, 116, 117, 118, 119, 200, 201, 202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 214, 215]:
+		return true
+	var hull_name: String = String(ShipData.get_hull(hull_id).get("name", "")).to_lower()
+	return hull_name in [
+		"hive",
+		"soldier",
+		"brood",
+		"jacker",
+		"protofield",
+		"stinger",
+		"accelerator",
+		"armoured nest",
+		"nest",
+		"farm",
+		"sentry",
+		"dunghill",
+		"duranium rock",
+		"tritanium rock",
+		"molybdenum rock"
+	]
+
+
+func _horwasp_clans_for_object(obj: CombatObject) -> int:
+	if obj.horwasp_clans >= 0:
+		return obj.horwasp_clans
+	return _infer_horwasp_clans_from_object(obj)
+
+
+func _infer_horwasp_clans_from_object(obj: CombatObject) -> int:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var hull_mass: int = max(1, int(hull.get("mass", obj.mass)))
+	return clamp(int(round((float(obj.mass) - float(hull_mass)) * float(cargo_capacity) / float(hull_mass))), 0, cargo_capacity)
+
+
+func _apply_horwasp_clans_to_object(obj: CombatObject, clans: int, repair_damage: bool) -> void:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var clamped_clans: int = clamp(clans, 0, cargo_capacity)
+	var weapon_slot: int = clamp(int(floor(float(clamped_clans) * 9.0 / float(cargo_capacity))) + 1, 1, 10)
+	var hull_mass: int = int(hull.get("mass", 0))
+
+	obj.horwasp_clans = clamped_clans
+	obj.beam_type = weapon_slot
+	obj.beam_count = int(hull.get("beams", 0))
+	obj.torp_type = weapon_slot
+	obj.torp_launcher_count = int(hull.get("launchers", 0))
+	obj.bay_count = int(hull.get("bays", 0))
+	obj.shield = 0
+	if repair_damage:
+		obj.damage = clamp(obj.damage, 0, 100)
+	obj.crew = max(1, int(hull.get("crew", 1)))
+	obj.crew_max = obj.crew
+	obj.mass = hull_mass + int(floor(float(hull_mass) * float(clamped_clans) / float(cargo_capacity)))
+	obj.torp_count = 10000 if obj.torp_launcher_count > 0 else 0
+	obj.fighter_count = _horwasp_fighter_count(obj.hull_id, clamped_clans, cargo_capacity) if obj.bay_count > 0 else 0
+
+
+func _horwasp_fighter_count(hull_id: int, clans: int, cargo_capacity: int) -> int:
+	var hull_name: String = String(ShipData.get_hull(hull_id).get("name", "")).to_lower()
+	var max_fighters: int = 0
+	var base_fighters: int = 0
+	if hull_name == "hive":
+		max_fighters = 70
+		base_fighters = 10
+	elif hull_name == "brood":
+		max_fighters = 70
+		base_fighters = 10
+	elif hull_name == "soldier":
+		max_fighters = 40
+		base_fighters = 10
+	else:
+		return 0
+	return clamp(int(floor(float(clans) * float(max_fighters - base_fighters) / float(max(1, cargo_capacity)))) + base_fighters, 0, max_fighters)
 
 
 func _new_seed_ship_results(size: int) -> Array:
@@ -486,6 +593,7 @@ func _clone_combat_object(src: CombatObject) -> CombatObject:
 	obj.torp_count = src.torp_count
 	obj.fighter_count = src.fighter_count
 	obj.ssg_support_count = src.ssg_support_count
+	obj.horwasp_clans = src.horwasp_clans
 
 	obj.beam_kill_rate = src.beam_kill_rate
 	obj.beam_charge_rate = src.beam_charge_rate

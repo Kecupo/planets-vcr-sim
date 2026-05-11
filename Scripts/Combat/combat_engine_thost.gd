@@ -270,6 +270,7 @@ func _fire_at_fighter(side: CombatState.SideState, opp: CombatState.SideState, b
 
 	opp.fighter_active[best_index] = CombatConstants.FIGHTER_IDLE
 	opp.num_fighters_out -= 1
+	_apply_horwasp_fighter_clan_loss(opp)
 	side.beam_status[beam_index] = 0
 
 	emit_signal("fighter_killed", opp.side, best_index)
@@ -498,7 +499,26 @@ func _kill_fighter(side: CombatState.SideState, which: int, side_id: int) -> voi
 	if side.fighter_active[which] != CombatConstants.FIGHTER_IDLE:
 		side.fighter_active[which] = CombatConstants.FIGHTER_IDLE
 		side.num_fighters_out -= 1
+		_apply_horwasp_fighter_clan_loss(side)
 		emit_signal("fighter_killed", side_id, which)
+
+
+func _apply_horwasp_fighter_clan_loss(side: CombatState.SideState) -> void:
+	if side.obj.race_id != 12:
+		return
+	var clan_loss: int = _horwasp_fighter_clan_loss(side.obj.hull_id)
+	if clan_loss <= 0:
+		return
+	side.obj.horwasp_clans = max(0, side.obj.horwasp_clans - clan_loss)
+
+
+func _horwasp_fighter_clan_loss(hull_id: int) -> int:
+	var hull_name: String = String(ShipData.get_hull(hull_id).get("name", "")).to_lower()
+	if hull_name == "hive":
+		return 20
+	if hull_name == "soldier" or hull_name == "brood":
+		return 2
+	return 0
 		
 func _hit_torp(target: CombatState.SideState, damage: int, kill: int) -> void:
 	var combat_mass: int = target.obj.mass

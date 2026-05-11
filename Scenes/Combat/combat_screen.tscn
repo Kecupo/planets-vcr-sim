@@ -298,7 +298,13 @@ text = "Next"
 layout_mode = 0
 offset_right = 8.0
 offset_bottom = 8.0
-text = "Start battle"
+text = "Play Battle"
+
+[node name="PauseButton" type="MenuButton" parent="UI/Buttons"]
+layout_mode = 0
+offset_right = 8.0
+offset_bottom = 8.0
+text = "Pause"
 
 [node name="StepButton" type="MenuButton" parent="UI/Buttons"]
 layout_mode = 0

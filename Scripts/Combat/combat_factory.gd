@@ -143,6 +143,9 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 	obj.torp_count = int(data.get("torpedos", 0))
 	obj.fighter_count = int(data.get("fighters", 0))
 	obj.ssg_support_count = int(data.get("ssgcount", 0))
+	obj.horwasp_clans = int(data.get("_clans", data.get("clans", -1)))
+	if obj.race_id == 12 and obj.horwasp_clans < 0:
+		obj.horwasp_clans = _infer_horwasp_clans_from_mass(obj)
 	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
 	var hull_bays: int = int(hull.get("bays", 0))
 	if obj.race_id == 1 and hull_bays > 0 and obj.bay_count > hull_bays:
@@ -171,6 +174,13 @@ static func _apply_hull_abilities(obj: CombatObject) -> void:
 static func _apply_race_hull_abilities(obj: CombatObject) -> void:
 	if obj.race_id == 12 and ShipData.is_jacker_hull(obj.hull_id):
 		obj.crew_defense_rate = 175
+
+
+static func _infer_horwasp_clans_from_mass(obj: CombatObject) -> int:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo: int = max(1, int(hull.get("cargo", 0)))
+	var hull_mass: int = max(1, int(hull.get("mass", obj.mass)))
+	return clamp(int(round((float(obj.mass) - float(hull_mass)) * float(cargo) / float(hull_mass))), 0, cargo)
 	
 static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()

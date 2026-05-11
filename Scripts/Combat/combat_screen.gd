@@ -42,6 +42,7 @@ extends Node2D
 @onready var simulation_result_label: Label = $UI/SimulationOverlay/Panel/SimulationResultLabel
 @onready var buttons_bar: MenuBar = $UI/Buttons
 @onready var start_button: Button = $UI/Buttons/StartButton
+@onready var pause_button: Button = $UI/Buttons/PauseButton
 @onready var step_button: Button = $UI/Buttons/StepButton
 @onready var fast_button: Button = $UI/Buttons/FastButton
 @onready var reset_button: Button = $UI/Buttons/ResetButton
@@ -82,6 +83,7 @@ var _simulation_result_pages: Array[String] = []
 var _simulation_result_page_index: int = 0
 
 var _running: bool = false
+var _playback_paused: bool = false
 var _run_speed: int = 1
 var _cycle_accumulator: float = 0.0
 var _seconds_per_cycle: float = 0.06
@@ -261,6 +263,10 @@ func _apply_ui_layout() -> void:
 
 	start_button.position = Vector2(bx, by)
 	start_button.size = Vector2(bw, bh)
+	bx += bw + gap
+
+	pause_button.position = Vector2(bx, by)
+	pause_button.size = Vector2(bw, bh)
 	bx += bw + gap
 
 	step_button.position = Vector2(bx, by)
@@ -468,6 +474,8 @@ func _process(delta: float) -> void:
 func _connect_buttons() -> void:
 	if not start_button.pressed.is_connected(_on_start_button_pressed):
 		start_button.pressed.connect(_on_start_button_pressed)
+	if not pause_button.pressed.is_connected(_on_pause_button_pressed):
+		pause_button.pressed.connect(_on_pause_button_pressed)
 	if not step_button.pressed.is_connected(_on_step_button_pressed):
 		step_button.pressed.connect(_on_step_button_pressed)
 	if not fast_button.pressed.is_connected(_on_fast_button_pressed):
@@ -539,6 +547,7 @@ func _make_checkbox_icon(checked: bool) -> Texture2D:
 
 func _set_playback_buttons_enabled(enabled: bool) -> void:
 	start_button.disabled = not enabled
+	pause_button.disabled = not enabled
 	step_button.disabled = not enabled
 	fast_button.disabled = not enabled
 	reset_button.disabled = not enabled
@@ -598,6 +607,7 @@ func _show_no_vcr_state() -> void:
 
 func _reset_battle() -> void:
 	_running = false
+	_playback_paused = false
 	_set_playback_buttons_enabled(true)
 	_builder_followup_pending = false
 	if _battle_builder_mode:
@@ -939,9 +949,9 @@ func _start_builder_followup_battle(status_word: int) -> void:
 	var next_left: CombatObject = current_vcr.left_fleet[next_left_index].duplicate_object() if left_removed else engine.state.left.obj.duplicate_object()
 	var next_right: CombatObject = current_vcr.right_fleet[next_right_index].duplicate_object() if right_removed else engine.state.right.obj.duplicate_object()
 	if not left_removed:
-		_regenerate_builder_shield_between_battles(next_left)
+		_prepare_builder_survivor_between_battles(next_left)
 	if not right_removed:
-		_regenerate_builder_shield_between_battles(next_right)
+		_prepare_builder_survivor_between_battles(next_right)
 
 	_builder_playback_left_index = next_left_index
 	_builder_playback_right_index = next_right_index
@@ -951,7 +961,14 @@ func _start_builder_followup_battle(status_word: int) -> void:
 	vcr_index_label.text = "BattleSimulator %d vs %d" % [_builder_playback_left_index + 1, _builder_playback_right_index + 1]
 	_cycle_accumulator = 0.0
 	_init_battle_engine()
-	_running = true
+	_running = not _playback_paused
+
+
+func _prepare_builder_survivor_between_battles(obj: CombatObject) -> void:
+	if _is_horwasp_hull(obj.hull_id) and obj.race_id == 12:
+		_repair_builder_horwasp_with_clans(obj)
+		return
+	_regenerate_builder_shield_between_battles(obj)
 
 
 func _regenerate_builder_shield_between_battles(obj: CombatObject) -> void:
@@ -963,16 +980,48 @@ func _regenerate_builder_shield_between_battles(obj: CombatObject) -> void:
 	var max_shield: int = 150 if obj.ssg_support_count > 0 and obj.damage <= 0 else max(0, 100 - obj.damage)
 	obj.shield = min(max_shield, obj.shield + shield_regen)
 
+
+func _repair_builder_horwasp_with_clans(obj: CombatObject) -> void:
+	var clans: int = _horwasp_clans_for_object(obj)
+	if clans > 0 and obj.damage > 0:
+		var repair_data: Dictionary = _repair_horwasp_damage_with_clans(obj, clans)
+		clans = int(repair_data["clans"])
+		obj.damage = int(repair_data["damage"])
+		_apply_horwasp_clans_to_object(obj, clans, true)
+	else:
+		_apply_horwasp_clans_to_object(obj, clans, false)
+
+
+func _repair_horwasp_damage_with_clans(obj: CombatObject, clans: int) -> Dictionary:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var damage: int = clamp(obj.damage, 0, 100)
+	var required_clans: int = int(ceil(float(cargo_capacity) * float(damage) / 100.0))
+	if clans >= required_clans:
+		return {"clans": clans - required_clans, "damage": 0}
+
+	var repaired_damage: int = int(floor(float(clans) * 100.0 / float(cargo_capacity)))
+	return {"clans": 0, "damage": max(0, damage - repaired_damage)}
+
 func _on_start_button_pressed() -> void:
 	_hide_simulation_results()
-	_reset_battle()
+	_playback_paused = false
+	if engine.state.status_word != CombatConstants.VCRS_NONE:
+		_reset_battle()
 	_run_speed = 1
 	_cycle_accumulator = 0.0
 	_seconds_per_cycle = 0.06
 	_running = true
 
+
+func _on_pause_button_pressed() -> void:
+	_playback_paused = true
+	_running = false
+
+
 func _on_step_button_pressed() -> void:
 	_hide_simulation_results()
+	_playback_paused = false
 	var still_running: bool = engine.play_cycle()
 	if not still_running:
 		engine.finish_battle()
@@ -981,6 +1030,7 @@ func _on_step_button_pressed() -> void:
 
 func _on_fast_button_pressed() -> void:
 	_hide_simulation_results()
+	_playback_paused = false
 	_run_speed = 2
 	_cycle_accumulator = 0.0
 	_seconds_per_cycle = 0.05
@@ -2229,6 +2279,8 @@ func _on_builder_move_ship_pressed(side_key: String, direction: int) -> void:
 
 
 func _estimate_horwasp_clans_from_object(obj: CombatObject) -> int:
+	if obj.horwasp_clans >= 0:
+		return obj.horwasp_clans
 	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
 	var cargo: int = int(hull.get("cargo", 0))
 	var hull_mass: int = max(1, int(hull.get("mass", obj.mass)))
@@ -2842,22 +2894,7 @@ func _apply_builder_horwasp_ship_values(obj: CombatObject, controls: Dictionary)
 	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
 	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
 	var clans: int = clamp(_spin_value(controls, "ammo"), 0, cargo_capacity)
-	var weapon_slot: int = clamp(int(floor(float(clans) * 9.0 / float(cargo_capacity))) + 1, 1, 10)
-	var hull_mass: int = int(hull.get("mass", 0))
-
-	obj.beam_type = weapon_slot
-	obj.beam_count = int(hull.get("beams", 0))
-	obj.torp_type = weapon_slot
-	obj.torp_launcher_count = int(hull.get("launchers", 0))
-	obj.bay_count = int(hull.get("bays", 0))
-	obj.shield = 0
-	obj.damage = 0
-	obj.crew = max(1, int(hull.get("crew", 1)))
-	obj.crew_max = obj.crew
-	obj.mass = hull_mass + int(floor(float(hull_mass) * float(clans) / float(cargo_capacity)))
-	obj.torp_count = 10000 if obj.torp_launcher_count > 0 else 0
-	obj.fighter_count = _horwasp_fighter_count(obj.hull_id, clans, cargo_capacity) if obj.bay_count > 0 else 0
-
+	_apply_horwasp_clans_to_object(obj, clans, true)
 	obj.beam_kill_rate = 1
 	obj.beam_charge_rate = 2 if _builder_uses_fast_beams(controls) else 1
 	obj.torp_charge_rate = 1
@@ -2865,6 +2902,42 @@ func _apply_builder_horwasp_ship_values(obj: CombatObject, controls: Dictionary)
 	obj.crew_defense_rate = 175 if ShipData.is_jacker_hull(obj.hull_id) else 100
 	obj.torp_range = ShipData.get_torp_range(obj.torp_type)
 	obj.damage_limit = 100
+
+
+func _horwasp_clans_for_object(obj: CombatObject) -> int:
+	if obj.horwasp_clans >= 0:
+		return obj.horwasp_clans
+	return _infer_horwasp_clans_from_object(obj)
+
+
+func _infer_horwasp_clans_from_object(obj: CombatObject) -> int:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var hull_mass: int = max(1, int(hull.get("mass", obj.mass)))
+	return clamp(int(round((float(obj.mass) - float(hull_mass)) * float(cargo_capacity) / float(hull_mass))), 0, cargo_capacity)
+
+
+func _apply_horwasp_clans_to_object(obj: CombatObject, clans: int, repair_damage: bool) -> void:
+	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
+	var cargo_capacity: int = max(1, int(hull.get("cargo", 0)))
+	var clamped_clans: int = clamp(clans, 0, cargo_capacity)
+	var weapon_slot: int = clamp(int(floor(float(clamped_clans) * 9.0 / float(cargo_capacity))) + 1, 1, 10)
+	var hull_mass: int = int(hull.get("mass", 0))
+
+	obj.horwasp_clans = clamped_clans
+	obj.beam_type = weapon_slot
+	obj.beam_count = int(hull.get("beams", 0))
+	obj.torp_type = weapon_slot
+	obj.torp_launcher_count = int(hull.get("launchers", 0))
+	obj.bay_count = int(hull.get("bays", 0))
+	obj.shield = 0
+	if repair_damage:
+		obj.damage = clamp(obj.damage, 0, 100)
+	obj.crew = max(1, int(hull.get("crew", 1)))
+	obj.crew_max = obj.crew
+	obj.mass = hull_mass + int(floor(float(hull_mass) * float(clamped_clans) / float(cargo_capacity)))
+	obj.torp_count = 10000 if obj.torp_launcher_count > 0 else 0
+	obj.fighter_count = _horwasp_fighter_count(obj.hull_id, clamped_clans, cargo_capacity) if obj.bay_count > 0 else 0
 
 
 func _apply_builder_hull_abilities(obj: CombatObject) -> void:

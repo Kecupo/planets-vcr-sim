@@ -30,6 +30,7 @@ var mass: int = 0
 var torp_count: int = 0
 var fighter_count: int = 0
 var ssg_support_count: int = 0
+var horwasp_clans: int = -1
 
 var beam_kill_rate: int = 1
 var beam_charge_rate: int = 1
@@ -69,6 +70,7 @@ func duplicate_object() -> CombatObject:
 	c.torp_count = torp_count
 	c.fighter_count = fighter_count
 	c.ssg_support_count = ssg_support_count
+	c.horwasp_clans = horwasp_clans
 	c.beam_kill_rate = beam_kill_rate
 	c.beam_charge_rate = beam_charge_rate
 	c.torp_charge_rate = torp_charge_rate
