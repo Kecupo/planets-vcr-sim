@@ -125,6 +125,9 @@ func _record_weighted_result(summary: Dictionary, result: Dictionary, weight: in
 	summary["right_min_end_ammo"] = min(int(summary["right_min_end_ammo"]), right_ammo)
 	summary["right_max_end_ammo"] = max(int(summary["right_max_end_ammo"]), right_ammo)
 
+	_record_ship_results(summary, "left_ship_stats", result.get("left_ship_results", []), weight)
+	_record_ship_results(summary, "right_ship_stats", result.get("right_ship_results", []), weight)
+
 
 func _finalize_summary(summary: Dictionary, source_vcr: ClassicVcr) -> Dictionary:
 	for key: String in ["left_min_non_destroyed_damage", "left_min_destroyed_damage", "right_min_non_destroyed_damage", "right_min_destroyed_damage", "left_min_end_shield", "right_min_end_shield", "left_min_end_ammo", "right_min_end_ammo"]:
@@ -167,7 +170,11 @@ func _finalize_summary(summary: Dictionary, source_vcr: ClassicVcr) -> Dictionar
 		"right_min_end_ammo": int(summary["right_min_end_ammo"]),
 		"right_max_end_ammo": int(summary["right_max_end_ammo"]),
 		"left_uses_fighters": source_vcr.left.bay_count > 0,
-		"right_uses_fighters": source_vcr.right.bay_count > 0
+		"right_uses_fighters": source_vcr.right.bay_count > 0,
+		"left_fleet_size": max(1, source_vcr.left_fleet.size()),
+		"right_fleet_size": max(1, source_vcr.right_fleet.size()),
+		"left_ship_stats": _finalize_ship_stats(summary.get("left_ship_stats", []), total_weight),
+		"right_ship_stats": _finalize_ship_stats(summary.get("right_ship_stats", []), total_weight)
 	}
 
 
@@ -176,36 +183,204 @@ func _simulate_single(source_vcr: ClassicVcr, battle_seed: int, mass_bonus: bool
 
 	if mass_bonus:
 		sim_vcr.right.mass += 360
+		if not sim_vcr.right_fleet.is_empty():
+			sim_vcr.right_fleet[0].mass += 360
 
-	var engine: CombatEngineThost = CombatEngineThost.new()
-	engine.init_vcr(sim_vcr)
+	return _simulate_fleet_sequence(sim_vcr)
 
-	while engine.play_cycle():
-		pass
 
-	engine.finish_battle()
+func _simulate_fleet_sequence(sim_vcr: ClassicVcr) -> Dictionary:
+	var left_fleet: Array[CombatObject] = _clone_fleet(sim_vcr.left_fleet)
+	var right_fleet: Array[CombatObject] = _clone_fleet(sim_vcr.right_fleet)
+	if left_fleet.is_empty():
+		left_fleet.append(_clone_combat_object(sim_vcr.left))
+	if right_fleet.is_empty():
+		right_fleet.append(_clone_combat_object(sim_vcr.right))
 
-	var left_obj: CombatObject = engine.state.left.obj
-	var right_obj: CombatObject = engine.state.right.obj
+	var left_index: int = 0
+	var right_index: int = 0
+	var current_left: CombatObject = left_fleet[left_index]
+	var current_right: CombatObject = right_fleet[right_index]
+	var last_left: CombatObject = current_left
+	var last_right: CombatObject = current_right
+	var left_removed: bool = false
+	var right_removed: bool = false
+	var left_captured: bool = false
+	var right_captured: bool = false
+	var battle_count: int = 0
+	var left_ship_results: Array = _new_seed_ship_results(left_fleet.size())
+	var right_ship_results: Array = _new_seed_ship_results(right_fleet.size())
 
-	var status_word: int = engine.state.status_word
-	var left_destroyed: bool = (status_word & CombatConstants.VCRS_LEFT_DESTROYED) != 0
-	var right_destroyed: bool = (status_word & CombatConstants.VCRS_RIGHT_DESTROYED) != 0
-	var left_captured: bool = (status_word & CombatConstants.VCRS_LEFT_CAPTURED) != 0
-	var right_captured: bool = (status_word & CombatConstants.VCRS_RIGHT_CAPTURED) != 0
+	while left_index < left_fleet.size() and right_index < right_fleet.size():
+		battle_count += 1
+		var battle_vcr: ClassicVcr = ClassicVcr.new()
+		battle_vcr.battle_seed = sim_vcr.battle_seed
+		battle_vcr.battle_type = sim_vcr.battle_type
+		battle_vcr.set_single_combatants(current_left, current_right)
+
+		var engine: CombatEngineThost = CombatEngineThost.new()
+		engine.init_vcr(battle_vcr)
+
+		while engine.play_cycle():
+			pass
+
+		engine.finish_battle()
+
+		var status_word: int = engine.state.status_word
+		last_left = engine.state.left.obj
+		last_right = engine.state.right.obj
+		current_left = last_left
+		current_right = last_right
+
+		var this_left_removed: bool = (status_word & (CombatConstants.VCRS_LEFT_DESTROYED | CombatConstants.VCRS_LEFT_CAPTURED)) != 0
+		var this_right_removed: bool = (status_word & (CombatConstants.VCRS_RIGHT_DESTROYED | CombatConstants.VCRS_RIGHT_CAPTURED)) != 0
+		var this_left_destroyed: bool = (status_word & CombatConstants.VCRS_LEFT_DESTROYED) != 0
+		var this_right_destroyed: bool = (status_word & CombatConstants.VCRS_RIGHT_DESTROYED) != 0
+		var this_left_captured: bool = (status_word & CombatConstants.VCRS_LEFT_CAPTURED) != 0
+		var this_right_captured: bool = (status_word & CombatConstants.VCRS_RIGHT_CAPTURED) != 0
+		left_ship_results[left_index] = _new_seed_ship_result(last_left, this_left_destroyed, this_left_captured)
+		right_ship_results[right_index] = _new_seed_ship_result(last_right, this_right_destroyed, this_right_captured)
+
+		if not this_left_removed and not this_right_removed:
+			break
+
+		if this_left_removed:
+			left_index += 1
+			left_removed = left_index >= left_fleet.size()
+			left_captured = left_removed and this_left_captured
+			if left_index < left_fleet.size():
+				current_left = left_fleet[left_index]
+		if this_right_removed:
+			right_index += 1
+			right_removed = right_index >= right_fleet.size()
+			right_captured = right_removed and this_right_captured
+			if right_index < right_fleet.size():
+				current_right = right_fleet[right_index]
+
+		if left_index >= left_fleet.size() or right_index >= right_fleet.size():
+			break
+
+		if not this_left_removed:
+			_regenerate_ssg_shield_between_battles(current_left)
+		if not this_right_removed:
+			_regenerate_ssg_shield_between_battles(current_right)
 
 	return {
-		"left_destroyed": left_destroyed,
-		"right_destroyed": right_destroyed,
+		"left_destroyed": left_removed,
+		"right_destroyed": right_removed,
 		"left_captured": left_captured,
 		"right_captured": right_captured,
-		"left_damage": left_obj.damage,
-		"right_damage": right_obj.damage,
-		"left_shield": left_obj.shield,
-		"right_shield": right_obj.shield,
-		"left_ammo": _get_end_ammo(left_obj),
-		"right_ammo": _get_end_ammo(right_obj)
+		"left_damage": last_left.damage,
+		"right_damage": last_right.damage,
+		"left_shield": last_left.shield,
+		"right_shield": last_right.shield,
+		"left_ammo": _get_end_ammo(last_left),
+		"right_ammo": _get_end_ammo(last_right),
+		"battle_count": battle_count,
+		"left_remaining": max(0, left_fleet.size() - left_index),
+		"right_remaining": max(0, right_fleet.size() - right_index),
+		"left_ship_results": left_ship_results,
+		"right_ship_results": right_ship_results
 	}
+
+
+func _regenerate_ssg_shield_between_battles(obj: CombatObject) -> void:
+	if obj == null:
+		return
+	var shield_regen: int = 25 * obj.ssg_support_count
+	if not obj.is_planet and obj.race_id == 1:
+		shield_regen += 25
+	if shield_regen <= 0:
+		return
+
+	var max_shield: int = 150 if obj.ssg_support_count > 0 and obj.damage <= 0 else max(0, 100 - obj.damage)
+	obj.shield = min(max_shield, obj.shield + shield_regen)
+
+
+func _new_seed_ship_results(size: int) -> Array:
+	var result: Array = []
+	for i: int in range(size):
+		result.append({"used": false})
+	return result
+
+
+func _new_seed_ship_result(obj: CombatObject, destroyed: bool, captured: bool) -> Dictionary:
+	return {
+		"used": true,
+		"destroyed": destroyed,
+		"captured": captured,
+		"damage": obj.damage,
+		"shield": obj.shield,
+		"ammo": _get_end_ammo(obj)
+	}
+
+
+func _new_ship_stat() -> Dictionary:
+	return {
+		"used_count": 0,
+		"not_used_count": 0,
+		"destroyed_count": 0,
+		"captured_count": 0,
+		"survived_count": 0,
+		"min_damage": 9999,
+		"max_damage": 0,
+		"min_shield": 9999,
+		"max_shield": 0,
+		"min_ammo": 9999,
+		"max_ammo": 0
+	}
+
+
+func _record_ship_results(summary: Dictionary, key: String, ship_results: Array, weight: int) -> void:
+	var stats: Array = summary.get(key, [])
+	while stats.size() < ship_results.size():
+		stats.append(_new_ship_stat())
+
+	for i: int in range(ship_results.size()):
+		var ship_result: Dictionary = ship_results[i]
+		var stat: Dictionary = stats[i]
+		if not bool(ship_result.get("used", false)):
+			stat["not_used_count"] = int(stat["not_used_count"]) + weight
+			continue
+
+		stat["used_count"] = int(stat["used_count"]) + weight
+		var destroyed: bool = bool(ship_result.get("destroyed", false))
+		var captured: bool = bool(ship_result.get("captured", false))
+		if destroyed:
+			stat["destroyed_count"] = int(stat["destroyed_count"]) + weight
+		if captured:
+			stat["captured_count"] = int(stat["captured_count"]) + weight
+		if not destroyed and not captured:
+			stat["survived_count"] = int(stat["survived_count"]) + weight
+
+		var damage: int = int(ship_result.get("damage", 0))
+		var shield: int = int(ship_result.get("shield", 0))
+		var ammo: int = int(ship_result.get("ammo", 0))
+		stat["min_damage"] = min(int(stat["min_damage"]), damage)
+		stat["max_damage"] = max(int(stat["max_damage"]), damage)
+		stat["min_shield"] = min(int(stat["min_shield"]), shield)
+		stat["max_shield"] = max(int(stat["max_shield"]), shield)
+		stat["min_ammo"] = min(int(stat["min_ammo"]), ammo)
+		stat["max_ammo"] = max(int(stat["max_ammo"]), ammo)
+
+	summary[key] = stats
+
+
+func _finalize_ship_stats(stats: Array, total_weight: int) -> Array:
+	var finalized: Array = []
+	for stat_variant: Variant in stats:
+		var stat: Dictionary = stat_variant
+		for key: String in ["min_damage", "min_shield", "min_ammo"]:
+			if int(stat[key]) == 9999:
+				stat[key] = 0
+		var entry: Dictionary = stat.duplicate(true)
+		entry["used_percent"] = _percent(int(entry["used_count"]), total_weight)
+		entry["not_used_percent"] = _percent(int(entry["not_used_count"]), total_weight)
+		entry["destroyed_percent"] = _percent(int(entry["destroyed_count"]), total_weight)
+		entry["captured_percent"] = _percent(int(entry["captured_count"]), total_weight)
+		entry["survived_percent"] = _percent(int(entry["survived_count"]), total_weight)
+		finalized.append(entry)
+	return finalized
 
 
 func _right_mass_bonus_possible(source_vcr: ClassicVcr) -> bool:
@@ -310,6 +485,7 @@ func _clone_combat_object(src: CombatObject) -> CombatObject:
 
 	obj.torp_count = src.torp_count
 	obj.fighter_count = src.fighter_count
+	obj.ssg_support_count = src.ssg_support_count
 
 	obj.beam_kill_rate = src.beam_kill_rate
 	obj.beam_charge_rate = src.beam_charge_rate

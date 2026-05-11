@@ -142,6 +142,7 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 
 	obj.torp_count = int(data.get("torpedos", 0))
 	obj.fighter_count = int(data.get("fighters", 0))
+	obj.ssg_support_count = int(data.get("ssgcount", 0))
 	var hull: Dictionary = ShipData.get_hull(obj.hull_id)
 	var hull_bays: int = int(hull.get("bays", 0))
 	if obj.race_id == 1 and hull_bays > 0 and obj.bay_count > hull_bays:

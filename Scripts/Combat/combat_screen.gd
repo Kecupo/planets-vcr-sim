@@ -74,7 +74,12 @@ var left_status_bar: ShieldDamageBar = null
 var right_status_bar: ShieldDamageBar = null
 var simulation_progress_bar: ProgressBar = null
 var simulation_progress_label: Label = null
+var simulation_page_prev_button: Button = null
+var simulation_page_next_button: Button = null
+var simulation_page_label: Label = null
 var _simulation_in_progress: bool = false
+var _simulation_result_pages: Array[String] = []
+var _simulation_result_page_index: int = 0
 
 var _running: bool = false
 var _run_speed: int = 1
@@ -89,6 +94,13 @@ var button_bar_frame: CombatHudFrame = null
 var battle_setup_overlay: Control = null
 var battle_setup_panel: Panel = null
 var _builder_controls: Dictionary = {}
+const BUILDER_MAX_FLEET_SIZE: int = 10
+var _builder_fleet_settings: Dictionary = {"left": [], "right": []}
+var _builder_active_slot: Dictionary = {"left": 0, "right": 0}
+var _builder_switching_slot: bool = false
+var _builder_playback_left_index: int = 0
+var _builder_playback_right_index: int = 0
+var _builder_followup_pending: bool = false
 var TOP_UI_HEIGHT: float = 95.0
 var BOTTOM_UI_HEIGHT: float = 120.0
 var BATTLE_LEFT_MARGIN: float = 30.0
@@ -182,6 +194,26 @@ func _ensure_simulation_progress_ui() -> void:
 		simulation_progress_bar.step = 1.0
 		simulation_progress_bar.show_percentage = false
 		panel.add_child(simulation_progress_bar)
+
+	if simulation_page_prev_button == null:
+		simulation_page_prev_button = Button.new()
+		simulation_page_prev_button.name = "ResultPagePrev"
+		simulation_page_prev_button.text = "<"
+		simulation_page_prev_button.pressed.connect(_on_simulation_page_prev_pressed)
+		panel.add_child(simulation_page_prev_button)
+
+	if simulation_page_next_button == null:
+		simulation_page_next_button = Button.new()
+		simulation_page_next_button.name = "ResultPageNext"
+		simulation_page_next_button.text = ">"
+		simulation_page_next_button.pressed.connect(_on_simulation_page_next_pressed)
+		panel.add_child(simulation_page_next_button)
+
+	if simulation_page_label == null:
+		simulation_page_label = Label.new()
+		simulation_page_label.name = "ResultPageLabel"
+		simulation_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		panel.add_child(simulation_page_label)
 
 func _resolve_turn_file_path() -> String:
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
@@ -567,6 +599,20 @@ func _show_no_vcr_state() -> void:
 func _reset_battle() -> void:
 	_running = false
 	_set_playback_buttons_enabled(true)
+	_builder_followup_pending = false
+	if _battle_builder_mode:
+		_builder_playback_left_index = 0
+		_builder_playback_right_index = 0
+		current_vcr.ensure_fleets()
+		if not current_vcr.left_fleet.is_empty():
+			current_vcr.left = current_vcr.left_fleet[0].duplicate_object()
+		if not current_vcr.right_fleet.is_empty():
+			current_vcr.right = current_vcr.right_fleet[0].duplicate_object()
+		current_vcr.battle_type = CombatConstants.SHIP_TO_PLANET if current_vcr.right.is_planet else CombatConstants.SHIP_TO_SHIP
+	_init_battle_engine()
+
+
+func _init_battle_engine() -> void:
 	engine = CombatEngineThost.new()
 	engine.init_vcr(current_vcr)
 
@@ -835,26 +881,87 @@ func _on_battle_finished(_status_word: int) -> void:
 
 	var left_destroyed: bool = _is_visually_destroyed(engine.state.left.obj)
 	var right_destroyed: bool = _is_visually_destroyed(engine.state.right.obj)
+	var should_continue: bool = _builder_can_continue_after_battle(_status_word)
 
-	if left_destroyed:
-		_defer_until_projectiles_finish(
-			func() -> void:
+	_defer_until_projectiles_finish(
+		func() -> void:
+			if left_destroyed:
 				_spawn_big_explosion(
 					left_ship.position,
 					max(left_ship.get_visual_width(), left_ship.get_visual_height())
 				)
 				left_ship.visible = false
-		)
-
-	if right_destroyed:
-		_defer_until_projectiles_finish(
-			func() -> void:
+			if right_destroyed:
 				_spawn_big_explosion(
 					right_ship.position,
 					max(right_ship.get_visual_width(), right_ship.get_visual_height())
 				)
 				right_ship.visible = false
-		)
+			if should_continue:
+				_schedule_builder_followup_battle(_status_word)
+	)
+
+
+func _builder_can_continue_after_battle(status_word: int) -> bool:
+	if not _battle_builder_mode:
+		return false
+	current_vcr.ensure_fleets()
+	var left_removed: bool = (status_word & (CombatConstants.VCRS_LEFT_DESTROYED | CombatConstants.VCRS_LEFT_CAPTURED)) != 0
+	var right_removed: bool = (status_word & (CombatConstants.VCRS_RIGHT_DESTROYED | CombatConstants.VCRS_RIGHT_CAPTURED)) != 0
+	if not left_removed and not right_removed:
+		return false
+
+	var next_left_index: int = _builder_playback_left_index + (1 if left_removed else 0)
+	var next_right_index: int = _builder_playback_right_index + (1 if right_removed else 0)
+	return next_left_index < current_vcr.left_fleet.size() and next_right_index < current_vcr.right_fleet.size()
+
+
+func _schedule_builder_followup_battle(status_word: int) -> void:
+	if _builder_followup_pending:
+		return
+	_builder_followup_pending = true
+	var timer: SceneTreeTimer = get_tree().create_timer(0.55)
+	timer.timeout.connect(func() -> void:
+		_builder_followup_pending = false
+		_start_builder_followup_battle(status_word)
+	)
+
+
+func _start_builder_followup_battle(status_word: int) -> void:
+	if not _builder_can_continue_after_battle(status_word):
+		return
+
+	var left_removed: bool = (status_word & (CombatConstants.VCRS_LEFT_DESTROYED | CombatConstants.VCRS_LEFT_CAPTURED)) != 0
+	var right_removed: bool = (status_word & (CombatConstants.VCRS_RIGHT_DESTROYED | CombatConstants.VCRS_RIGHT_CAPTURED)) != 0
+	var next_left_index: int = _builder_playback_left_index + (1 if left_removed else 0)
+	var next_right_index: int = _builder_playback_right_index + (1 if right_removed else 0)
+
+	var next_left: CombatObject = current_vcr.left_fleet[next_left_index].duplicate_object() if left_removed else engine.state.left.obj.duplicate_object()
+	var next_right: CombatObject = current_vcr.right_fleet[next_right_index].duplicate_object() if right_removed else engine.state.right.obj.duplicate_object()
+	if not left_removed:
+		_regenerate_builder_shield_between_battles(next_left)
+	if not right_removed:
+		_regenerate_builder_shield_between_battles(next_right)
+
+	_builder_playback_left_index = next_left_index
+	_builder_playback_right_index = next_right_index
+	current_vcr.left = next_left
+	current_vcr.right = next_right
+	current_vcr.battle_type = CombatConstants.SHIP_TO_PLANET if current_vcr.right.is_planet else CombatConstants.SHIP_TO_SHIP
+	vcr_index_label.text = "BattleSimulator %d vs %d" % [_builder_playback_left_index + 1, _builder_playback_right_index + 1]
+	_cycle_accumulator = 0.0
+	_init_battle_engine()
+	_running = true
+
+
+func _regenerate_builder_shield_between_battles(obj: CombatObject) -> void:
+	var shield_regen: int = 25 * obj.ssg_support_count
+	if not obj.is_planet and obj.race_id == 1:
+		shield_regen += 25
+	if shield_regen <= 0:
+		return
+	var max_shield: int = 150 if obj.ssg_support_count > 0 and obj.damage <= 0 else max(0, 100 - obj.damage)
+	obj.shield = min(max_shield, obj.shield + shield_regen)
 
 func _on_start_button_pressed() -> void:
 	_hide_simulation_results()
@@ -1081,6 +1188,9 @@ func _on_simulate_button_pressed() -> void:
 	simulation_result_label.visible_characters = -1
 	simulation_result_label.visible_ratio = 1.0
 	simulation_result_label.lines_skipped = 0
+	_simulation_result_pages = []
+	_simulation_result_page_index = 0
+	_update_simulation_page_controls()
 	_update_simulation_progress(0, 118)
 
 	var result: Dictionary = await simulator.simulate_all_seeds_async(current_vcr, _on_simulation_progress)
@@ -1149,11 +1259,76 @@ func _on_simulate_button_pressed() -> void:
 
 	var middle_text: String = ""
 	middle_text += "Seeds: %d\n" % result["total_battles"]
+	middle_text += "Fleet size: %d vs %d\n" % [result.get("left_fleet_size", 1), result.get("right_fleet_size", 1)]
 	middle_text += "Both destroyed: %.2f%%\n" % result["both_destroyed_percent"]
 
-	simulation_result_label.text = left_text + "\n" + middle_text + "\n" + right_text
+	_simulation_result_pages = [left_text + "\n" + middle_text + "\n" + right_text]
+	if int(result.get("left_fleet_size", 1)) > 1 or int(result.get("right_fleet_size", 1)) > 1:
+		_append_ship_result_pages(result)
+	_simulation_result_page_index = 0
+	_apply_simulation_result_page()
 	simulation_result_label.visible = true
 	simulation_result_label.queue_redraw()
+
+
+func _append_ship_result_pages(result: Dictionary) -> void:
+	_append_side_ship_result_pages("LEFT", result.get("left_ship_stats", []))
+	_append_side_ship_result_pages("RIGHT", result.get("right_ship_stats", []))
+
+
+func _append_side_ship_result_pages(side_name: String, stats: Array) -> void:
+	for i: int in range(stats.size()):
+		var stat: Dictionary = stats[i]
+		var page: String = ""
+		page += "%s SHIP %d\n" % [side_name, i + 1]
+		page += "Used: %.2f%%\n" % stat.get("used_percent", 0.0)
+		page += "Not used: %.2f%%\n" % stat.get("not_used_percent", 0.0)
+		page += "Survived: %.2f%%\n" % stat.get("survived_percent", 0.0)
+		page += "Destroyed: %.2f%%\n" % stat.get("destroyed_percent", 0.0)
+		page += "Captured: %.2f%%\n" % stat.get("captured_percent", 0.0)
+		page += "Damage end: %d - %d\n" % [stat.get("min_damage", 0), stat.get("max_damage", 0)]
+		page += "Shield end: %d - %d\n" % [stat.get("min_shield", 0), stat.get("max_shield", 0)]
+		page += "Ammo end: %d - %d\n" % [stat.get("min_ammo", 0), stat.get("max_ammo", 0)]
+		_simulation_result_pages.append(page)
+
+
+func _apply_simulation_result_page() -> void:
+	if _simulation_result_pages.is_empty():
+		simulation_result_label.text = ""
+	else:
+		_simulation_result_page_index = clamp(_simulation_result_page_index, 0, _simulation_result_pages.size() - 1)
+		simulation_result_label.text = _simulation_result_pages[_simulation_result_page_index]
+	_update_simulation_page_controls()
+
+
+func _update_simulation_page_controls() -> void:
+	var has_pages: bool = _simulation_result_pages.size() > 1
+	if simulation_page_prev_button != null:
+		simulation_page_prev_button.visible = has_pages
+		simulation_page_prev_button.disabled = not has_pages or _simulation_result_page_index <= 0
+	if simulation_page_next_button != null:
+		simulation_page_next_button.visible = has_pages
+		simulation_page_next_button.disabled = not has_pages or _simulation_result_page_index >= _simulation_result_pages.size() - 1
+	if simulation_page_label != null:
+		simulation_page_label.visible = has_pages
+		if has_pages:
+			simulation_page_label.text = "%d / %d" % [_simulation_result_page_index + 1, _simulation_result_pages.size()]
+		else:
+			simulation_page_label.text = ""
+
+
+func _on_simulation_page_prev_pressed() -> void:
+	if _simulation_result_page_index <= 0:
+		return
+	_simulation_result_page_index -= 1
+	_apply_simulation_result_page()
+
+
+func _on_simulation_page_next_pressed() -> void:
+	if _simulation_result_page_index >= _simulation_result_pages.size() - 1:
+		return
+	_simulation_result_page_index += 1
+	_apply_simulation_result_page()
 
 
 func _layout_simulation_result_label() -> void:
@@ -1167,7 +1342,7 @@ func _layout_simulation_result_label() -> void:
 	var label_screen_pos: Vector2 = Vector2(max(24.0, viewport_size.x * 0.5 - 230.0), max(96.0, BATTLE_TOP + 18.0))
 	if panel != null:
 		panel.position = label_screen_pos - Vector2(12.0, 12.0)
-		panel.size = label_size + Vector2(24.0, 70.0)
+		panel.size = label_size + Vector2(24.0, 100.0)
 		panel.clip_contents = false
 		if simulation_progress_label != null:
 			simulation_progress_label.position = Vector2(12.0, 10.0)
@@ -1175,7 +1350,16 @@ func _layout_simulation_result_label() -> void:
 		if simulation_progress_bar != null:
 			simulation_progress_bar.position = Vector2(12.0, 34.0)
 			simulation_progress_bar.size = Vector2(label_size.x, 18.0)
-		simulation_result_label.position = Vector2(12.0, 58.0)
+		if simulation_page_prev_button != null:
+			simulation_page_prev_button.position = Vector2(12.0, 58.0)
+			simulation_page_prev_button.size = Vector2(34.0, 24.0)
+		if simulation_page_next_button != null:
+			simulation_page_next_button.position = Vector2(label_size.x - 22.0, 58.0)
+			simulation_page_next_button.size = Vector2(34.0, 24.0)
+		if simulation_page_label != null:
+			simulation_page_label.position = Vector2(52.0, 60.0)
+			simulation_page_label.size = Vector2(label_size.x - 80.0, 20.0)
+		simulation_result_label.position = Vector2(12.0, 88.0)
 	else:
 		simulation_result_label.position = label_screen_pos
 	simulation_result_label.size = label_size
@@ -1372,9 +1556,7 @@ func _ensure_battle_builder_ui() -> void:
 	close_button.position = Vector2(900.0, builder_button_y)
 	close_button.size = Vector2(80.0, 30.0)
 	battle_setup_panel.add_child(close_button)
-	close_button.pressed.connect(func() -> void:
-		battle_setup_overlay.visible = false
-	)
+	close_button.pressed.connect(_on_builder_close_pressed)
 
 	_populate_builder_defaults()
 
@@ -1477,7 +1659,41 @@ func _create_side_builder(parent: Control, side_key: String, title: String, x: f
 		planet_check.toggled.connect(_on_builder_planet_toggled.bind(side_key))
 		y += 30.0
 
-	_add_builder_spin_row(parent, controls, "object_id", "Object ID", x, y, 1.0, 999999.0, 1.0, 0.0)
+	var position_spin: SpinBox = _add_builder_spin_row(parent, controls, "object_id", "Ship position", x, y, 1.0, 1.0, 1.0, 1.0)
+	position_spin.size = Vector2(66.0, 26.0)
+	position_spin.value_changed.connect(_on_builder_position_changed.bind(side_key))
+	var add_ship_button: Button = Button.new()
+	add_ship_button.text = "+"
+	add_ship_button.tooltip_text = "Add ship"
+	add_ship_button.position = Vector2(x + 214.0, y)
+	add_ship_button.size = Vector2(30.0, 26.0)
+	parent.add_child(add_ship_button)
+	controls["add_ship"] = add_ship_button
+	add_ship_button.pressed.connect(_on_builder_add_ship_pressed.bind(side_key))
+	var delete_ship_button: Button = Button.new()
+	delete_ship_button.text = "Del"
+	delete_ship_button.tooltip_text = "Remove ship"
+	delete_ship_button.position = Vector2(x + 250.0, y)
+	delete_ship_button.size = Vector2(34.0, 26.0)
+	parent.add_child(delete_ship_button)
+	controls["delete_ship"] = delete_ship_button
+	delete_ship_button.pressed.connect(_on_builder_delete_ship_pressed.bind(side_key))
+	var move_up_button: Button = Button.new()
+	move_up_button.text = "Up"
+	move_up_button.tooltip_text = "Move ship earlier"
+	move_up_button.position = Vector2(x + 290.0, y)
+	move_up_button.size = Vector2(44.0, 26.0)
+	parent.add_child(move_up_button)
+	controls["move_ship_up"] = move_up_button
+	move_up_button.pressed.connect(_on_builder_move_ship_pressed.bind(side_key, -1))
+	var move_down_button: Button = Button.new()
+	move_down_button.text = "Down"
+	move_down_button.tooltip_text = "Move ship later"
+	move_down_button.position = Vector2(x + 340.0, y)
+	move_down_button.size = Vector2(58.0, 26.0)
+	parent.add_child(move_down_button)
+	controls["move_ship_down"] = move_down_button
+	move_down_button.pressed.connect(_on_builder_move_ship_pressed.bind(side_key, 1))
 	y += 30.0
 	var name_edit: LineEdit = _add_builder_line_row(parent, controls, "name", "Name", x, y)
 	name_edit.editable = false
@@ -1797,6 +2013,8 @@ func _populate_builder_defaults() -> void:
 	_update_builder_hull_defaults("left", true)
 	_update_builder_hull_defaults("right", true)
 	_on_builder_planet_toggled(false, "right")
+	_reset_builder_fleet_from_current_controls("left")
+	_reset_builder_fleet_from_current_controls("right")
 
 
 func _set_side_to_first_available_hull(side_key: String) -> void:
@@ -1808,11 +2026,23 @@ func _set_side_to_first_available_hull(side_key: String) -> void:
 
 func _on_battle_sim_button_pressed() -> void:
 	if _battle_builder_mode:
-		_populate_builder_from_current_vcr()
+		_restore_builder_from_stored_settings()
 	else:
 		_populate_builder_defaults()
 	_layout_battle_builder_ui()
 	battle_setup_overlay.visible = true
+
+
+func _restore_builder_from_stored_settings() -> void:
+	for side_key: String in ["left", "right"]:
+		var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+		if settings_list.is_empty():
+			_reset_builder_fleet_from_current_controls(side_key)
+			continue
+		var active: int = clamp(int(_builder_active_slot.get(side_key, 0)), 0, settings_list.size() - 1)
+		_builder_active_slot[side_key] = active
+		_apply_builder_side_settings(side_key, settings_list[active])
+		_sync_builder_slot_controls(side_key)
 
 
 func _populate_builder_from_current_vcr() -> void:
@@ -1822,6 +2052,8 @@ func _populate_builder_from_current_vcr() -> void:
 
 	_populate_side_builder_from_object("left", current_vcr.left)
 	_populate_side_builder_from_object("right", current_vcr.right)
+	_reset_builder_fleet_from_vcr("left", current_vcr.left_fleet)
+	_reset_builder_fleet_from_vcr("right", current_vcr.right_fleet)
 
 
 func _populate_side_builder_from_object(side_key: String, obj: CombatObject) -> void:
@@ -1880,6 +2112,120 @@ func _populate_side_builder_from_object(side_key: String, obj: CombatObject) -> 
 	if not obj.is_planet:
 		_update_builder_hull_defaults(side_key, false)
 		(controls["name"] as LineEdit).text = object_name
+
+
+func _reset_builder_fleet_from_current_controls(side_key: String) -> void:
+	_builder_active_slot[side_key] = 0
+	_builder_fleet_settings[side_key] = [_capture_builder_side_settings(side_key)]
+	_sync_builder_slot_controls(side_key)
+
+
+func _reset_builder_fleet_from_vcr(side_key: String, fleet: Array[CombatObject]) -> void:
+	var saved_active: int = 0
+	var settings_list: Array[Dictionary] = []
+	var source_fleet: Array[CombatObject] = fleet
+	if source_fleet.is_empty():
+		_reset_builder_fleet_from_current_controls(side_key)
+		return
+
+	for i: int in range(min(source_fleet.size(), BUILDER_MAX_FLEET_SIZE)):
+		_populate_side_builder_from_object(side_key, source_fleet[i])
+		settings_list.append(_capture_builder_side_settings(side_key))
+
+	_builder_active_slot[side_key] = saved_active
+	_builder_fleet_settings[side_key] = settings_list
+	_apply_builder_side_settings(side_key, settings_list[saved_active])
+	_sync_builder_slot_controls(side_key)
+
+
+func _save_active_builder_slot(side_key: String) -> void:
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	if settings_list.is_empty():
+		settings_list = [_capture_builder_side_settings(side_key)]
+	var active: int = clamp(int(_builder_active_slot.get(side_key, 0)), 0, settings_list.size() - 1)
+	settings_list[active] = _capture_builder_side_settings(side_key)
+	_builder_fleet_settings[side_key] = settings_list
+
+
+func _sync_builder_slot_controls(side_key: String) -> void:
+	var controls: Dictionary = _builder_controls[side_key]
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	if settings_list.is_empty():
+		settings_list = [_capture_builder_side_settings(side_key)]
+		_builder_fleet_settings[side_key] = settings_list
+
+	var active: int = clamp(int(_builder_active_slot.get(side_key, 0)), 0, settings_list.size() - 1)
+	_builder_active_slot[side_key] = active
+
+	_builder_switching_slot = true
+	var position_spin: SpinBox = controls["object_id"] as SpinBox
+	position_spin.max_value = settings_list.size()
+	position_spin.value = active + 1
+	_builder_switching_slot = false
+
+	var is_planet: bool = controls.has("is_planet") and (controls["is_planet"] as CheckBox).button_pressed
+	if controls.has("add_ship"):
+		(controls["add_ship"] as Button).disabled = is_planet or settings_list.size() >= BUILDER_MAX_FLEET_SIZE
+	if controls.has("delete_ship"):
+		(controls["delete_ship"] as Button).disabled = is_planet or settings_list.size() <= 1
+	if controls.has("move_ship_up"):
+		(controls["move_ship_up"] as Button).disabled = is_planet or active <= 0
+	if controls.has("move_ship_down"):
+		(controls["move_ship_down"] as Button).disabled = is_planet or active >= settings_list.size() - 1
+
+
+func _on_builder_position_changed(value: float, side_key: String) -> void:
+	if _builder_switching_slot:
+		return
+	_save_active_builder_slot(side_key)
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	if settings_list.is_empty():
+		return
+	var new_slot: int = clamp(int(value) - 1, 0, settings_list.size() - 1)
+	_builder_active_slot[side_key] = new_slot
+	_apply_builder_side_settings(side_key, settings_list[new_slot])
+	_sync_builder_slot_controls(side_key)
+
+
+func _on_builder_add_ship_pressed(side_key: String) -> void:
+	_save_active_builder_slot(side_key)
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	if settings_list.size() >= BUILDER_MAX_FLEET_SIZE:
+		return
+	settings_list.append(settings_list[int(_builder_active_slot.get(side_key, 0))].duplicate(true))
+	_builder_fleet_settings[side_key] = settings_list
+	_builder_active_slot[side_key] = settings_list.size() - 1
+	_apply_builder_side_settings(side_key, settings_list[settings_list.size() - 1])
+	_sync_builder_slot_controls(side_key)
+
+
+func _on_builder_delete_ship_pressed(side_key: String) -> void:
+	_save_active_builder_slot(side_key)
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	if settings_list.size() <= 1:
+		return
+	var active: int = clamp(int(_builder_active_slot.get(side_key, 0)), 0, settings_list.size() - 1)
+	settings_list.remove_at(active)
+	_builder_fleet_settings[side_key] = settings_list
+	_builder_active_slot[side_key] = min(active, settings_list.size() - 1)
+	_apply_builder_side_settings(side_key, settings_list[int(_builder_active_slot[side_key])])
+	_sync_builder_slot_controls(side_key)
+
+
+func _on_builder_move_ship_pressed(side_key: String, direction: int) -> void:
+	_save_active_builder_slot(side_key)
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	var active: int = int(_builder_active_slot.get(side_key, 0))
+	var target: int = active + direction
+	if target < 0 or target >= settings_list.size():
+		return
+	var tmp: Variant = settings_list[active]
+	settings_list[active] = settings_list[target]
+	settings_list[target] = tmp
+	_builder_fleet_settings[side_key] = settings_list
+	_builder_active_slot[side_key] = target
+	_apply_builder_side_settings(side_key, settings_list[target])
+	_sync_builder_slot_controls(side_key)
 
 
 func _estimate_horwasp_clans_from_object(obj: CombatObject) -> int:
@@ -1942,6 +2288,9 @@ func _on_builder_planet_toggled(enabled: bool, side_key: String) -> void:
 		_update_builder_starbase_fields(side_key)
 		_update_builder_hull_defaults(side_key, false)
 		_sync_builder_name_to_hull(side_key)
+
+	if _builder_fleet_settings.has(side_key):
+		_sync_builder_slot_controls(side_key)
 
 
 func _set_builder_enabled(control: Variant, enabled: bool) -> void:
@@ -2259,15 +2608,33 @@ func _on_builder_apply_pressed() -> void:
 	_on_simulate_button_pressed()
 
 
+func _on_builder_close_pressed() -> void:
+	if _builder_controls.has("left"):
+		_save_active_builder_slot("left")
+	if _builder_controls.has("right"):
+		_save_active_builder_slot("right")
+	battle_setup_overlay.visible = false
+
+
 func _on_builder_swap_sides_pressed() -> void:
 	var right: Dictionary = _builder_controls["right"]
 	if right.has("is_planet") and (right["is_planet"] as CheckBox).button_pressed:
 		return
 
-	var left_settings: Dictionary = _capture_builder_side_settings("left")
-	var right_settings: Dictionary = _capture_builder_side_settings("right")
-	_apply_builder_side_settings("left", right_settings)
-	_apply_builder_side_settings("right", left_settings)
+	_save_active_builder_slot("left")
+	_save_active_builder_slot("right")
+	var left_fleet: Array = (_builder_fleet_settings.get("left", []) as Array).duplicate(true)
+	var right_fleet: Array = (_builder_fleet_settings.get("right", []) as Array).duplicate(true)
+	var left_active: int = int(_builder_active_slot.get("left", 0))
+	var right_active: int = int(_builder_active_slot.get("right", 0))
+	_builder_fleet_settings["left"] = right_fleet
+	_builder_fleet_settings["right"] = left_fleet
+	_builder_active_slot["left"] = min(right_active, max(0, right_fleet.size() - 1))
+	_builder_active_slot["right"] = min(left_active, max(0, left_fleet.size() - 1))
+	_apply_builder_side_settings("left", (_builder_fleet_settings["left"] as Array)[int(_builder_active_slot["left"])])
+	_apply_builder_side_settings("right", (_builder_fleet_settings["right"] as Array)[int(_builder_active_slot["right"])])
+	_sync_builder_slot_controls("left")
+	_sync_builder_slot_controls("right")
 
 
 func _capture_builder_side_settings(side_key: String) -> Dictionary:
@@ -2276,7 +2643,7 @@ func _capture_builder_side_settings(side_key: String) -> Dictionary:
 
 	for key in controls.keys():
 		var key_text: String = String(key)
-		if key_text.ends_with("_label"):
+		if key_text.ends_with("_label") or key_text in ["object_id", "add_ship", "delete_ship", "move_ship_up", "move_ship_down"]:
 			continue
 
 		var control: Variant = controls[key]
@@ -2312,9 +2679,11 @@ func _apply_builder_side_settings(side_key: String, settings: Dictionary) -> voi
 	var hull_id: int = int(settings["hull"]["value"]) if settings.has("hull") else 0
 	_fill_hull_option(controls["hull"] as OptionButton, race_id, hull_id)
 	_select_option_by_id(controls["hull"] as OptionButton, hull_id)
+	if not (controls.has("is_planet") and (controls["is_planet"] as CheckBox).button_pressed):
+		_update_builder_hull_defaults(side_key, false)
 
 	for key in settings.keys():
-		if key in ["is_planet", "owner", "race", "hull"]:
+		if key in ["is_planet", "owner", "race", "hull", "object_id"]:
 			continue
 		if not controls.has(key):
 			continue
@@ -2346,7 +2715,15 @@ func _apply_builder_side_settings(side_key: String, settings: Dictionary) -> voi
 func _create_builder_vcr() -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
 	vcr.battle_seed = 1
-	vcr.set_single_combatants(_create_builder_object("left"), _create_builder_object("right"))
+	var left_fleet: Array[CombatObject] = _create_builder_fleet("left")
+	var right_fleet: Array[CombatObject] = _create_builder_fleet("right")
+	if left_fleet.is_empty():
+		left_fleet.append(_create_builder_object("left"))
+	if right_fleet.is_empty():
+		right_fleet.append(_create_builder_object("right"))
+	vcr.set_single_combatants(left_fleet[0], right_fleet[0])
+	vcr.left_fleet = _duplicate_combat_object_array(left_fleet)
+	vcr.right_fleet = _duplicate_combat_object_array(right_fleet)
 
 	if vcr.right.is_planet:
 		vcr.battle_type = CombatConstants.SHIP_TO_PLANET
@@ -2356,12 +2733,44 @@ func _create_builder_vcr() -> ClassicVcr:
 	return vcr
 
 
+func _create_builder_fleet(side_key: String) -> Array[CombatObject]:
+	_save_active_builder_slot(side_key)
+	var controls: Dictionary = _builder_controls[side_key]
+	var settings_list: Array = _builder_fleet_settings.get(side_key, [])
+	var saved_active: int = int(_builder_active_slot.get(side_key, 0))
+	var saved_settings: Dictionary = _capture_builder_side_settings(side_key)
+	var result: Array[CombatObject] = []
+
+	for i: int in range(min(settings_list.size(), BUILDER_MAX_FLEET_SIZE)):
+		_builder_active_slot[side_key] = i
+		_apply_builder_side_settings(side_key, settings_list[i])
+		_sync_builder_slot_controls(side_key)
+		var is_planet: bool = controls.has("is_planet") and (controls["is_planet"] as CheckBox).button_pressed
+		if is_planet and i > 0:
+			continue
+		result.append(_create_builder_object(side_key))
+		if is_planet:
+			break
+
+	_builder_active_slot[side_key] = saved_active
+	_apply_builder_side_settings(side_key, saved_settings)
+	_sync_builder_slot_controls(side_key)
+	return result
+
+
+func _duplicate_combat_object_array(source: Array[CombatObject]) -> Array[CombatObject]:
+	var result: Array[CombatObject] = []
+	for obj: CombatObject in source:
+		result.append(obj.duplicate_object())
+	return result
+
+
 func _create_builder_object(side_key: String) -> CombatObject:
 	var controls: Dictionary = _builder_controls[side_key]
 	var obj: CombatObject = CombatObject.new()
 	var is_planet: bool = controls.has("is_planet") and (controls["is_planet"] as CheckBox).button_pressed
 
-	obj.object_id = _spin_value(controls, "object_id")
+	obj.object_id = int(_builder_active_slot.get(side_key, 0)) + 1
 	obj.race_id = _option_id(controls, "race")
 	obj.owner_id = obj.race_id
 	(controls["owner"] as SpinBox).value = obj.race_id
@@ -2556,11 +2965,11 @@ func _apply_builder_ssg_support(obj: CombatObject, controls: Dictionary) -> void
 		return
 
 	var ssg_count: int = clamp(_spin_value(controls, "ssg_count") if controls.has("ssg_count") else 0, 0, 2)
+	obj.ssg_support_count = ssg_count
 	if ssg_count <= 0:
 		return
 
 	var engine_type: int = _option_id(controls, "engine_type") if controls.has("engine_type") else 0
-	obj.shield = min(150, obj.shield + 25 * ssg_count)
 	obj.mass += _ssg_engine_mass_bonus(engine_type) * ssg_count
 
 
