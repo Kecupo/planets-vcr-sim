@@ -358,8 +358,9 @@ func _fighter_shoot(side: CombatState.SideState, opp: CombatState.SideState, i: 
 		return
 
 	if abs(side.fighter_x[i] - opp.cur_x) < 20:
-		emit_signal("beam_fired", side.side, side.fighter_x[i], opp.cur_x, true, i)
-		_hit(opp, 2, 2)
+		if not _fighter_hit_blocked_by_target(opp):
+			emit_signal("beam_fired", side.side, side.fighter_x[i], opp.cur_x, true, i)
+			_hit(opp, 2, 2)
 
 func _hit(target: CombatState.SideState, damage: int, kill: int) -> void:
 	var combat_mass: int = target.obj.mass
@@ -375,7 +376,8 @@ func _hit(target: CombatState.SideState, damage: int, kill: int) -> void:
 	if target.obj.shield == 0 and not target.obj.is_planet and not target.obj.is_squadron:
 		var effective_kill: int = kill
 		if target.obj.crew_defense_rate > 0:
-			effective_kill = radiv((100 - target.obj.crew_defense_rate) * kill, 100)
+			var defense: int = clamp(target.obj.crew_defense_rate, 0, 100)
+			effective_kill = radiv((100 - defense) * kill, 100)
 
 		var crew_after: int = -rdivadd(80 * effective_kill, combat_mass + 1, -target.obj.crew, state.rounding_mode)
 		target.obj.crew = max(0, crew_after)
@@ -471,14 +473,26 @@ func _move_fighters() -> void:
 func _fighter_shoot_left(i: int) -> void:
 	if state.left.fighter_active[i] == CombatConstants.FIGHTER_ATTACKS \
 	and abs(state.left.fighter_x[i] - state.right.cur_x) < 20:
-		_hit(state.right, 2, 2)
-		emit_signal("beam_fired", CombatTypes.Side.LEFT, state.left.fighter_x[i], state.right.cur_x, true, i)
+		if not _fighter_hit_blocked_by_target(state.right):
+			_hit(state.right, 2, 2)
+			emit_signal("beam_fired", CombatTypes.Side.LEFT, state.left.fighter_x[i], state.right.cur_x, true, i)
 		
 func _fighter_shoot_right(i: int) -> void:
 	if state.right.fighter_active[i] == CombatConstants.FIGHTER_ATTACKS \
 	and abs(state.right.fighter_x[i] - state.left.cur_x) < 20:
-		_hit(state.left, 2, 2)
-		emit_signal("beam_fired", CombatTypes.Side.RIGHT, state.right.fighter_x[i], state.left.cur_x, true, i)
+		if not _fighter_hit_blocked_by_target(state.left):
+			_hit(state.left, 2, 2)
+			emit_signal("beam_fired", CombatTypes.Side.RIGHT, state.right.fighter_x[i], state.left.cur_x, true, i)
+
+
+func _fighter_hit_blocked_by_target(target: CombatState.SideState) -> bool:
+	var fighter_defense: int = 0
+	if target.obj.crew_defense_rate > 100:
+		fighter_defense = target.obj.crew_defense_rate - 100
+	elif target.obj.crew_defense_rate < 0:
+		fighter_defense = -target.obj.crew_defense_rate
+
+	return fighter_defense > 0 and rng.random_1_100() <= fighter_defense
 		
 func _kill_fighter(side: CombatState.SideState, which: int, side_id: int) -> void:
 	if side.fighter_active[which] != CombatConstants.FIGHTER_IDLE:

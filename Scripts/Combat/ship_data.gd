@@ -329,6 +329,13 @@ func has_gravitonic_accelerator(hull_id: int) -> bool:
 	return special.find("gravitonic") >= 0
 
 
+func is_jacker_hull(hull_id: int) -> bool:
+	if hull_id in [118, 212]:
+		return true
+	var hull_name: String = String(get_hull(hull_id).get("name", "")).to_lower()
+	return hull_name.find("jacker") >= 0
+
+
 func keeps_shields_without_beams(hull_id: int) -> bool:
 	var hull: Dictionary = get_hull(hull_id)
 	var hull_name: String = String(hull.get("name", "")).to_lower()

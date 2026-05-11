@@ -72,6 +72,9 @@ var _left_visual_key: String = ""
 var _right_visual_key: String = ""
 var left_status_bar: ShieldDamageBar = null
 var right_status_bar: ShieldDamageBar = null
+var simulation_progress_bar: ProgressBar = null
+var simulation_progress_label: Label = null
+var _simulation_in_progress: bool = false
 
 var _running: bool = false
 var _run_speed: int = 1
@@ -126,6 +129,7 @@ func _ready() -> void:
 
 	_ensure_battle_builder_ui()
 	_ensure_status_bars()
+	_ensure_simulation_progress_ui()
 	_apply_ui_layout()
 	if not get_viewport().size_changed.is_connected(_on_viewport_size_changed):
 		get_viewport().size_changed.connect(_on_viewport_size_changed)
@@ -157,6 +161,27 @@ func _ensure_status_bars() -> void:
 	left_damage_label.visible = false
 	right_shield_label.visible = false
 	right_damage_label.visible = false
+
+
+func _ensure_simulation_progress_ui() -> void:
+	var panel: Control = simulation_result_label.get_parent() as Control
+	if panel == null:
+		return
+
+	if simulation_progress_label == null:
+		simulation_progress_label = Label.new()
+		simulation_progress_label.name = "ProgressLabel"
+		simulation_progress_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		panel.add_child(simulation_progress_label)
+
+	if simulation_progress_bar == null:
+		simulation_progress_bar = ProgressBar.new()
+		simulation_progress_bar.name = "ProgressBar"
+		simulation_progress_bar.min_value = 0.0
+		simulation_progress_bar.max_value = 118.0
+		simulation_progress_bar.step = 1.0
+		simulation_progress_bar.show_percentage = false
+		panel.add_child(simulation_progress_bar)
 
 func _resolve_turn_file_path() -> String:
 	var user_args: PackedStringArray = OS.get_cmdline_user_args()
@@ -865,8 +890,13 @@ func _on_reset_button_pressed() -> void:
 
 
 func _hide_simulation_results() -> void:
+	_simulation_in_progress = false
 	simulation_result_label.text = ""
 	simulation_result_label.visible = false
+	if simulation_progress_bar != null:
+		simulation_progress_bar.visible = false
+	if simulation_progress_label != null:
+		simulation_progress_label.visible = false
 	simulation_overlay.visible = false
 
 func _on_beam_fired(side: int, from_x: int, to_x: int, from_is_fighter: bool, track_id: int) -> void:
@@ -1039,7 +1069,11 @@ func _find_active_torp_lane(side: CombatState.SideState) -> int:
 	return best_index
 
 func _on_simulate_button_pressed() -> void:
+	if _simulation_in_progress:
+		return
+
 	_running = false
+	_simulation_in_progress = true
 	simulation_overlay.visible = true
 	_layout_simulation_result_label()
 	simulation_result_label.visible = false
@@ -1047,8 +1081,11 @@ func _on_simulate_button_pressed() -> void:
 	simulation_result_label.visible_characters = -1
 	simulation_result_label.visible_ratio = 1.0
 	simulation_result_label.lines_skipped = 0
+	_update_simulation_progress(0, 118)
 
-	var result: Dictionary = simulator.simulate_all_seeds(current_vcr)
+	var result: Dictionary = await simulator.simulate_all_seeds_async(current_vcr, _on_simulation_progress)
+	_simulation_in_progress = false
+	_update_simulation_progress(118, 118, "Simulation complete")
 
 	var left_ammo_name: String = "Torps"
 	if result["left_uses_fighters"]:
@@ -1120,6 +1157,7 @@ func _on_simulate_button_pressed() -> void:
 
 
 func _layout_simulation_result_label() -> void:
+	_ensure_simulation_progress_ui()
 	var viewport_size: Vector2 = get_viewport_rect().size
 	var panel: Control = simulation_result_label.get_parent() as Control
 
@@ -1129,13 +1167,39 @@ func _layout_simulation_result_label() -> void:
 	var label_screen_pos: Vector2 = Vector2(max(24.0, viewport_size.x * 0.5 - 230.0), max(96.0, BATTLE_TOP + 18.0))
 	if panel != null:
 		panel.position = label_screen_pos - Vector2(12.0, 12.0)
-		panel.size = label_size + Vector2(24.0, 24.0)
+		panel.size = label_size + Vector2(24.0, 70.0)
 		panel.clip_contents = false
-		simulation_result_label.position = Vector2(12.0, 12.0)
+		if simulation_progress_label != null:
+			simulation_progress_label.position = Vector2(12.0, 10.0)
+			simulation_progress_label.size = Vector2(label_size.x, 20.0)
+		if simulation_progress_bar != null:
+			simulation_progress_bar.position = Vector2(12.0, 34.0)
+			simulation_progress_bar.size = Vector2(label_size.x, 18.0)
+		simulation_result_label.position = Vector2(12.0, 58.0)
 	else:
 		simulation_result_label.position = label_screen_pos
 	simulation_result_label.size = label_size
 	simulation_result_label.clip_text = false
+
+
+func _on_simulation_progress(completed: int, total: int) -> void:
+	_update_simulation_progress(completed, total)
+
+
+func _update_simulation_progress(completed: int, total: int, label_override: String = "") -> void:
+	_ensure_simulation_progress_ui()
+	if simulation_progress_bar == null or simulation_progress_label == null:
+		return
+
+	var safe_total: int = max(1, total)
+	simulation_progress_bar.max_value = safe_total
+	simulation_progress_bar.value = clamp(completed, 0, safe_total)
+	simulation_progress_bar.visible = true
+	simulation_progress_label.visible = true
+	if label_override != "":
+		simulation_progress_label.text = "%s (%d / %d)" % [label_override, completed, safe_total]
+	else:
+		simulation_progress_label.text = "Simulating seed %d / %d" % [completed, safe_total]
 
 func _build_ship_header(obj: CombatObject) -> String:
 	return "%s (ID %d)" % [
@@ -2389,7 +2453,7 @@ func _apply_builder_horwasp_ship_values(obj: CombatObject, controls: Dictionary)
 	obj.beam_charge_rate = 2 if _builder_uses_fast_beams(controls) else 1
 	obj.torp_charge_rate = 1
 	obj.torp_miss_rate = 35
-	obj.crew_defense_rate = 100
+	obj.crew_defense_rate = 175 if ShipData.is_jacker_hull(obj.hull_id) else 100
 	obj.torp_range = ShipData.get_torp_range(obj.torp_type)
 	obj.damage_limit = 100
 

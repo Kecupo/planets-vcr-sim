@@ -74,6 +74,7 @@ static func create_ship_from_hull(
 	obj.torp_range = ShipData.get_torp_range(torp_type)
 	obj.crew_defense_rate = 0
 	obj.damage_limit = 100
+	_apply_race_hull_abilities(obj)
 	# Fed bonus
 	if obj.race_id == 1:
 		obj.mass += 50
@@ -152,6 +153,7 @@ static func create_combat_object_from_turn_side(data: Dictionary, owner_id: int)
 	obj.torp_charge_rate = int(data.get("torpchargerate", 1))
 	obj.torp_miss_rate = int(data.get("torpmisspercent", 35))
 	obj.crew_defense_rate = int(data.get("crewdefensepercent", 0))
+	_apply_race_hull_abilities(obj)
 
 	obj.torp_range = 340 if obj.torp_type == 11 else 300
 	obj.damage_limit = 150 if obj.race_id == 2 else 100
@@ -163,6 +165,11 @@ static func _apply_hull_abilities(obj: CombatObject) -> void:
 	obj.is_squadron = ShipData.is_squadron_hull(obj.hull_id)
 	obj.is_elusive = ShipData.is_elusive_hull(obj.hull_id)
 	obj.has_gravitonic_accelerator = ShipData.has_gravitonic_accelerator(obj.hull_id)
+
+
+static func _apply_race_hull_abilities(obj: CombatObject) -> void:
+	if obj.race_id == 12 and ShipData.is_jacker_hull(obj.hull_id):
+		obj.crew_defense_rate = 175
 	
 static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
