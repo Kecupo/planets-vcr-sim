@@ -336,6 +336,11 @@ func is_jacker_hull(hull_id: int) -> bool:
 	return hull_name.find("jacker") >= 0
 
 
+func is_frigate_hull(hull_id: int) -> bool:
+	var hull_name: String = String(get_hull(hull_id).get("name", "")).to_lower()
+	return hull_name.find("frigate") >= 0
+
+
 func keeps_shields_without_beams(hull_id: int) -> bool:
 	var hull: Dictionary = get_hull(hull_id)
 	var hull_name: String = String(hull.get("name", "")).to_lower()

@@ -120,6 +120,7 @@ const FIGHTER_VIEW_SCENE := preload("res://Scenes/Combat/fighter_sprite_2d.tscn"
 const DEFAULT_TURN_FILE: String = "user://latest_turn.json"
 const PROJECT_TURN_FILE: String = "res://latest_turn.json"
 const PROJECT_DEFAULT_SHIP_DATA_FILE: String = "res://default_ship_data.json"
+const FED_FRIGATE_FIGHTER_DEFENSE: int = 35
 
 func _ready() -> void:
 	var turn_file_path: String = _resolve_turn_file_path()
@@ -1767,6 +1768,13 @@ func _create_side_builder(parent: Control, side_key: String, title: String, x: f
 	y += 30.0
 
 	_add_builder_spin_row(parent, controls, "ssg_count", "SSG Support", x, y, 0.0, 2.0, 1.0, 0.0)
+	var fed_frigate_check: CheckBox = CheckBox.new()
+	fed_frigate_check.text = "Fed Frigate Defense"
+	fed_frigate_check.position = Vector2(x + 250.0, y - 2.0)
+	fed_frigate_check.size = Vector2(230.0, 26.0)
+	_style_builder_checkbox(fed_frigate_check)
+	parent.add_child(fed_frigate_check)
+	controls["fed_frigate_defense"] = fed_frigate_check
 	y += 30.0
 	var red_wind_check: CheckBox = CheckBox.new()
 	red_wind_check.text = "cloaked Red Wind"
@@ -2122,6 +2130,10 @@ func _populate_side_builder_from_object(side_key: String, obj: CombatObject) -> 
 	_select_option_by_id(controls["hull"] as OptionButton, obj.hull_id)
 	_select_option_by_id(controls["engine_type"] as OptionButton, 9)
 	(controls["ssg_count"] as SpinBox).value = 0
+	if controls.has("fed_frigate_defense"):
+		(controls["fed_frigate_defense"] as CheckBox).button_pressed = obj.race_id == 1 \
+			and ShipData.is_frigate_hull(obj.hull_id) \
+			and obj.crew_defense_rate == -FED_FRIGATE_FIGHTER_DEFENSE
 	if controls.has("red_wind_support"):
 		(controls["red_wind_support"] as CheckBox).button_pressed = false
 	if controls.has("red_wind_fighters"):
@@ -2316,6 +2328,7 @@ func _on_builder_planet_toggled(enabled: bool, side_key: String) -> void:
 	_set_builder_row_visible(controls, "hull", not enabled)
 	_set_builder_row_visible(controls, "engine_type", not enabled)
 	_set_builder_row_visible(controls, "ssg_count", not enabled)
+	_set_builder_row_visible(controls, "fed_frigate_defense", false)
 	_set_builder_row_visible(controls, "mass", not enabled)
 	_set_builder_row_visible(controls, "shield", not enabled)
 	_set_builder_row_visible(controls, "damage", not enabled)
@@ -2325,6 +2338,8 @@ func _on_builder_planet_toggled(enabled: bool, side_key: String) -> void:
 		(controls["starbase"] as Control).visible = enabled
 	if controls.has("fast_beams"):
 		(controls["fast_beams"] as Control).visible = false
+	if controls.has("fed_frigate_defense") and enabled:
+		(controls["fed_frigate_defense"] as CheckBox).button_pressed = false
 
 	if enabled:
 		(controls["name"] as LineEdit).text = "Planet"
@@ -2489,6 +2504,7 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 	var controls: Dictionary = _builder_controls[side_key]
 	if controls.has("is_planet") and (controls["is_planet"] as CheckBox).button_pressed:
 		_apply_builder_weapon_visibility(controls, false, false, false)
+		_set_builder_row_visible(controls, "fed_frigate_defense", false)
 		_set_builder_row_visible(controls, "red_wind_support", false)
 		_set_builder_row_visible(controls, "red_wind_fighters", false)
 		_set_builder_enabled(controls["shield"], true)
@@ -2510,6 +2526,7 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 	var available_tubes: int = min(max_tubes, damage_weapon_limit)
 	var available_bays: int = min(max_bays, damage_weapon_limit)
 	var can_have_shields: bool = available_beams > 0 or ShipData.keeps_shields_without_beams(hull_id)
+	var show_fed_frigate_defense: bool = _option_id(controls, "race") == 1 and ShipData.is_frigate_hull(hull_id)
 
 	_set_spin_max_value(controls, "beam_count", available_beams)
 	_set_spin_max_value(controls, "torp_count", available_tubes)
@@ -2523,6 +2540,7 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 	else:
 		_set_builder_row_visible(controls, "engine_type", true)
 		_set_builder_row_visible(controls, "ssg_count", true)
+		_set_builder_row_visible(controls, "fed_frigate_defense", show_fed_frigate_defense)
 		_set_builder_row_visible(controls, "red_wind_support", available_bays > 0)
 		_set_builder_row_visible(controls, "red_wind_fighters", available_bays > 0 and (controls["red_wind_support"] as CheckBox).button_pressed)
 		_set_builder_row_visible(controls, "mass", true)
@@ -2541,6 +2559,8 @@ func _update_builder_hull_defaults(side_key: String, overwrite_values: bool) -> 
 
 		(controls["name"] as LineEdit).text = String(hull.get("name", "Ship"))
 		_select_option_by_id(controls["engine_type"] as OptionButton, 9)
+		if controls.has("fed_frigate_defense"):
+			(controls["fed_frigate_defense"] as CheckBox).button_pressed = false
 		if controls.has("red_wind_support"):
 			(controls["red_wind_support"] as CheckBox).button_pressed = false
 		if controls.has("red_wind_fighters"):
@@ -2585,6 +2605,7 @@ func _update_builder_fast_beams_default(controls: Dictionary) -> void:
 func _apply_builder_horwasp_visibility(controls: Dictionary) -> void:
 	_set_builder_row_visible(controls, "engine_type", false)
 	_set_builder_row_visible(controls, "ssg_count", false)
+	_set_builder_row_visible(controls, "fed_frigate_defense", false)
 	_set_builder_row_visible(controls, "red_wind_support", false)
 	_set_builder_row_visible(controls, "red_wind_fighters", false)
 	_set_builder_row_visible(controls, "mass", false)
@@ -2884,6 +2905,7 @@ func _create_builder_object(side_key: String) -> CombatObject:
 
 	_apply_builder_damage_weapon_limits(obj)
 	_apply_builder_fed_bay_bonus(obj)
+	_apply_builder_fed_frigate_defense(obj, controls)
 	_apply_builder_red_wind_support(obj, controls)
 	if not obj.is_planet and obj.beam_count <= 0 and not ShipData.keeps_shields_without_beams(obj.hull_id):
 		obj.shield = 0
@@ -3066,6 +3088,15 @@ func _apply_builder_fed_bay_bonus(obj: CombatObject) -> void:
 	obj.bay_count += 3
 	obj.bay_bonus_count += 3
 	obj.bay_bonus_parts.append(3)
+
+
+func _apply_builder_fed_frigate_defense(obj: CombatObject, controls: Dictionary) -> void:
+	if obj.race_id != 1 or not ShipData.is_frigate_hull(obj.hull_id):
+		return
+	if not controls.has("fed_frigate_defense") or not (controls["fed_frigate_defense"] as CheckBox).button_pressed:
+		return
+
+	obj.crew_defense_rate = -FED_FRIGATE_FIGHTER_DEFENSE
 
 
 func _red_wind_max_fighters() -> int:
