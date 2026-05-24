@@ -102,6 +102,7 @@ static func create_ship_from_hull(
 static func create_vcr_from_turn_vcr_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
 	vcr.battle_seed = int(data.get("seed", 1))
+	vcr.expanded_rng = vcr.battle_seed < 0
 	vcr.battle_type = int(data.get("battletype", 0))
 
 	var left_data: Dictionary = data.get("left", {})
@@ -186,6 +187,7 @@ static func create_vcr_from_turn_dict(data: Dictionary) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
 
 	vcr.battle_seed = int(data.get("seed", 1))
+	vcr.expanded_rng = vcr.battle_seed < 0
 	vcr.battle_type = int(data.get("battletype", 0))
 
 	var left_data: Dictionary = data.get("left", {})

@@ -48,7 +48,10 @@ func init_vcr(vcr: ClassicVcr) -> void:
 	state.left.cur_x = 30
 	state.right.cur_x = 610 if vcr.battle_type == CombatConstants.SHIP_TO_SHIP else 570
 
-	rng.set_seed(vcr.battle_seed)
+	var rng_seed: int = vcr.battle_seed
+	if vcr.expanded_rng and rng_seed > 0:
+		rng_seed = -rng_seed
+	rng.set_seed(rng_seed)
 
 	_preload_weapons(state.left)
 	_preload_weapons(state.right)

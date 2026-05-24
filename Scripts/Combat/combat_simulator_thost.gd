@@ -1,11 +1,16 @@
 class_name CombatSimulatorThost
 extends RefCounted
 
+const CLASSIC_SEED_COUNT: int = 118
+const EXPANDED_SAMPLE_COUNT: int = 1000
+
 func simulate_all_seeds(source_vcr: ClassicVcr) -> Dictionary:
 	var right_mass_bonus_possible: bool = _right_mass_bonus_possible(source_vcr)
-	var summary: Dictionary = _new_summary(right_mass_bonus_possible)
+	var total_battles: int = get_iteration_count(source_vcr)
+	var summary: Dictionary = _new_summary(right_mass_bonus_possible, total_battles)
 
-	for battle_seed: int in range(1, 119):
+	for i: int in range(1, total_battles + 1):
+		var battle_seed: int = _seed_for_iteration(source_vcr, i)
 		_simulate_seed_into_summary(source_vcr, battle_seed, right_mass_bonus_possible, summary)
 
 	return _finalize_summary(summary, source_vcr)
@@ -13,28 +18,37 @@ func simulate_all_seeds(source_vcr: ClassicVcr) -> Dictionary:
 
 func simulate_all_seeds_async(source_vcr: ClassicVcr, progress_callback: Callable = Callable()) -> Dictionary:
 	var right_mass_bonus_possible: bool = _right_mass_bonus_possible(source_vcr)
-	var summary: Dictionary = _new_summary(right_mass_bonus_possible)
+	var total_battles: int = get_iteration_count(source_vcr)
+	var summary: Dictionary = _new_summary(right_mass_bonus_possible, total_battles)
 	var tree: SceneTree = Engine.get_main_loop() as SceneTree
-	var total_battles: int = int(summary["total_battles"])
 
 	if progress_callback.is_valid():
 		progress_callback.call(0, total_battles)
 	if tree != null:
 		await tree.process_frame
 
-	for battle_seed: int in range(1, total_battles + 1):
+	for i: int in range(1, total_battles + 1):
+		var battle_seed: int = _seed_for_iteration(source_vcr, i)
 		_simulate_seed_into_summary(source_vcr, battle_seed, right_mass_bonus_possible, summary)
 		if progress_callback.is_valid():
-			progress_callback.call(battle_seed, total_battles)
+			progress_callback.call(i, total_battles)
 		if tree != null:
 			await tree.process_frame
 
 	return _finalize_summary(summary, source_vcr)
 
 
-func _new_summary(right_mass_bonus_possible: bool) -> Dictionary:
+func get_iteration_count(source_vcr: ClassicVcr) -> int:
+	return EXPANDED_SAMPLE_COUNT if source_vcr.expanded_rng else CLASSIC_SEED_COUNT
+
+
+func _seed_for_iteration(source_vcr: ClassicVcr, iteration: int) -> int:
+	return -iteration if source_vcr.expanded_rng else iteration
+
+
+func _new_summary(right_mass_bonus_possible: bool, total_battles: int) -> Dictionary:
 	return {
-		"total_battles": 118,
+		"total_battles": total_battles,
 		"total_weight": 0,
 		"right_mass_bonus_possible": right_mass_bonus_possible,
 		"left_destroyed_count": 0,
@@ -142,6 +156,7 @@ func _finalize_summary(summary: Dictionary, source_vcr: ClassicVcr) -> Dictionar
 	return {
 		"total_battles": int(summary["total_battles"]),
 		"total_weight": total_weight,
+		"expanded_rng": source_vcr.expanded_rng,
 		"right_mass_bonus_possible": bool(summary["right_mass_bonus_possible"]),
 		"left_destroyed_count": left_only_destroyed_count,
 		"right_destroyed_count": right_only_destroyed_count,
@@ -543,6 +558,7 @@ func _is_destroyed(obj: CombatObject) -> bool:
 func _clone_vcr_with_seed(source: ClassicVcr, battle_seed: int) -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
 	vcr.battle_seed = battle_seed
+	vcr.expanded_rng = source.expanded_rng
 	vcr.battle_type = source.battle_type
 	vcr.left = _clone_combat_object(source.left)
 	vcr.right = _clone_combat_object(source.right)

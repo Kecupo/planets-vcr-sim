@@ -2,6 +2,7 @@ class_name ClassicVcr
 extends RefCounted
 
 var battle_seed: int = 1
+var expanded_rng: bool = false
 var signature: int = 0
 var battle_type: int = CombatConstants.SHIP_TO_SHIP
 var left: CombatObject = CombatObject.new()
@@ -12,6 +13,7 @@ var right_fleet: Array[CombatObject] = []
 func duplicate_vcr() -> ClassicVcr:
 	var v: ClassicVcr = ClassicVcr.new()
 	v.battle_seed = battle_seed
+	v.expanded_rng = expanded_rng
 	v.signature = signature
 	v.battle_type = battle_type
 	v.left = left.duplicate_object()

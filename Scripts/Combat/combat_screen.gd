@@ -95,6 +95,7 @@ var battle_sim_button: Button = null
 var button_bar_frame: CombatHudFrame = null
 var battle_setup_overlay: Control = null
 var battle_setup_panel: Panel = null
+var battle_rng_option: OptionButton = null
 var _builder_controls: Dictionary = {}
 const BUILDER_MAX_FLEET_SIZE: int = 10
 var _builder_fleet_settings: Dictionary = {"left": [], "right": []}
@@ -1242,11 +1243,12 @@ func _on_simulate_button_pressed() -> void:
 	_simulation_result_pages = []
 	_simulation_result_page_index = 0
 	_update_simulation_page_controls()
-	_update_simulation_progress(0, 118)
+	var total_simulations: int = simulator.get_iteration_count(current_vcr)
+	_update_simulation_progress(0, total_simulations)
 
 	var result: Dictionary = await simulator.simulate_all_seeds_async(current_vcr, _on_simulation_progress)
 	_simulation_in_progress = false
-	_update_simulation_progress(118, 118, "Simulation complete")
+	_update_simulation_progress(total_simulations, total_simulations, "Simulation complete")
 
 	var left_ammo_name: String = "Torps"
 	if result["left_uses_fighters"]:
@@ -1309,7 +1311,8 @@ func _on_simulate_button_pressed() -> void:
 		]
 
 	var middle_text: String = ""
-	middle_text += "Seeds: %d\n" % result["total_battles"]
+	middle_text += "RNG: %s\n" % ("Expanded" if bool(result.get("expanded_rng", false)) else "Classic")
+	middle_text += "%s: %d\n" % ["Samples" if bool(result.get("expanded_rng", false)) else "Seeds", result["total_battles"]]
 	middle_text += "Fleet size: %d vs %d\n" % [result.get("left_fleet_size", 1), result.get("right_fleet_size", 1)]
 	middle_text += "Both destroyed: %.2f%%\n" % result["both_destroyed_percent"]
 
@@ -1578,6 +1581,15 @@ func _ensure_battle_builder_ui() -> void:
 
 	var title: Label = _builder_add_label(battle_setup_panel, "Battle Simulator", Vector2(24.0, 14.0), Vector2(420.0, 24.0))
 	title.add_theme_font_size_override("font_size", 18)
+
+	_builder_add_label(battle_setup_panel, "RNG", Vector2(760.0, 16.0), Vector2(42.0, 22.0))
+	battle_rng_option = OptionButton.new()
+	battle_rng_option.position = Vector2(804.0, 12.0)
+	battle_rng_option.size = Vector2(170.0, 28.0)
+	battle_rng_option.add_item("Classic RNG", 0)
+	battle_rng_option.add_item("Expanded RNG", 1)
+	battle_rng_option.select(0)
+	battle_setup_panel.add_child(battle_rng_option)
 
 	_create_side_builder(battle_setup_panel, "left", "Left combatant", 28.0, false)
 	_create_side_builder(battle_setup_panel, "right", "Right combatant", 590.0, true)
@@ -2787,7 +2799,8 @@ func _apply_builder_side_settings(side_key: String, settings: Dictionary) -> voi
 
 func _create_builder_vcr() -> ClassicVcr:
 	var vcr: ClassicVcr = ClassicVcr.new()
-	vcr.battle_seed = 1
+	vcr.expanded_rng = _builder_uses_expanded_rng()
+	vcr.battle_seed = -1 if vcr.expanded_rng else 1
 	var left_fleet: Array[CombatObject] = _create_builder_fleet("left")
 	var right_fleet: Array[CombatObject] = _create_builder_fleet("right")
 	if left_fleet.is_empty():
@@ -2804,6 +2817,10 @@ func _create_builder_vcr() -> ClassicVcr:
 		vcr.battle_type = CombatConstants.SHIP_TO_SHIP
 
 	return vcr
+
+
+func _builder_uses_expanded_rng() -> bool:
+	return battle_rng_option != null and battle_rng_option.get_selected_id() == 1
 
 
 func _create_builder_fleet(side_key: String) -> Array[CombatObject]:

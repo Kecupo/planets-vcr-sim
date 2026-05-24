@@ -2,6 +2,12 @@ class_name CombatRngThost
 extends RefCounted
 
 const RANDOM_SIZE: int = 119
+const MT_N: int = 624
+const MT_M: int = 397
+const MT_MATRIX_A: int = 0x9908b0df
+const MT_UPPER_MASK: int = 0x80000000
+const MT_LOWER_MASK: int = 0x7fffffff
+const UINT32_MASK: int = 0xffffffff
 
 const RAND_1_20: PackedInt32Array = ([
 	9,8,11,8,5,5,9,10,15,2,10,4,14,18,1,14,15,17,2,4,
@@ -31,8 +37,18 @@ const RAND_1_17: PackedInt32Array = ([
 ])
 
 var _seed: int = 1
+var _use_twister: bool = false
+var _mt: Array[int] = []
+var _mt_index: int = MT_N + 1
 
 func set_seed(p_seed: int) -> void:
+	if p_seed < 0:
+		_use_twister = true
+		_init_twister(abs(p_seed))
+		_seed = p_seed
+		return
+
+	_use_twister = false
 	var s: int = p_seed % RANDOM_SIZE
 	if s < 0:
 		s += RANDOM_SIZE
@@ -46,13 +62,77 @@ func _advance_and_get_index() -> int:
 	return _seed - 1
 
 func random_1_20() -> int:
+	if _use_twister:
+		return RAND_1_20[_twister_int(RANDOM_SIZE)]
 	return RAND_1_20[_advance_and_get_index()]
 
 func random_1_100() -> int:
+	if _use_twister:
+		return RAND_1_100[_twister_int(RANDOM_SIZE)]
 	return RAND_1_100[_advance_and_get_index()]
 
 func random_1_17() -> int:
+	if _use_twister:
+		return RAND_1_17[_twister_int(RANDOM_SIZE)]
 	return RAND_1_17[_advance_and_get_index()]
 
 func advance_beam_fighter_skip(beam_count: int) -> void:
+	if _use_twister:
+		return
 	_seed = (_seed + beam_count) % RANDOM_SIZE
+
+
+func _init_twister(seed: int) -> void:
+	_mt.resize(MT_N)
+	_mt[0] = _uint32(seed)
+	for i: int in range(1, MT_N):
+		var prev: int = _mt[i - 1]
+		_mt[i] = _uint32(1812433253 * (prev ^ (prev >> 30)) + i)
+	_mt_index = MT_N
+
+
+func _twister_int(limit: int) -> int:
+	var rejection_limit: int = UINT32_MASK - (UINT32_MASK % limit)
+	var value: int = _twister_int32()
+	while value >= rejection_limit:
+		value = _twister_int32()
+	return value % limit
+
+
+func _twister_int32() -> int:
+	if _mt_index >= MT_N:
+		_generate_twister_words()
+
+	var y: int = _mt[_mt_index]
+	_mt_index += 1
+
+	y = _uint32(y ^ (y >> 11))
+	y = _uint32(y ^ ((y << 7) & 0x9d2c5680))
+	y = _uint32(y ^ ((y << 15) & 0xefc60000))
+	y = _uint32(y ^ (y >> 18))
+	return y
+
+
+func _generate_twister_words() -> void:
+	if _mt.is_empty():
+		_init_twister(5489)
+
+	for kk: int in range(0, MT_N - MT_M):
+		var y: int = (_mt[kk] & MT_UPPER_MASK) | (_mt[kk + 1] & MT_LOWER_MASK)
+		_mt[kk] = _uint32(_mt[kk + MT_M] ^ (y >> 1) ^ _twister_mag(y))
+
+	for kk: int in range(MT_N - MT_M, MT_N - 1):
+		var y: int = (_mt[kk] & MT_UPPER_MASK) | (_mt[kk + 1] & MT_LOWER_MASK)
+		_mt[kk] = _uint32(_mt[kk + (MT_M - MT_N)] ^ (y >> 1) ^ _twister_mag(y))
+
+	var y: int = (_mt[MT_N - 1] & MT_UPPER_MASK) | (_mt[0] & MT_LOWER_MASK)
+	_mt[MT_N - 1] = _uint32(_mt[MT_M - 1] ^ (y >> 1) ^ _twister_mag(y))
+	_mt_index = 0
+
+
+func _twister_mag(value: int) -> int:
+	return MT_MATRIX_A if (value & 1) != 0 else 0
+
+
+func _uint32(value: int) -> int:
+	return value & UINT32_MASK
